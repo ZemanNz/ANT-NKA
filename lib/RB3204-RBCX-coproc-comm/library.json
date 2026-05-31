@@ -1,0 +1,21 @@
+{
+  "name": "RB3204-RBCX-coproc-comm",
+  "keywords": "",
+  "description": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RoboticsBrno/RB3204-RBCX-coproc-comm.git"
+  },
+  "authors": [
+    {
+      "name": "Vojtech Bocek",
+      "email": "vbocek@gmail.com",
+      "maintainer": true
+    }
+  ],
+  "dependencies": [],
+  "version": "0.0.1",
+  "frameworks": "*",
+  "platforms": "*"
+}

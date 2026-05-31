@@ -1,0 +1,48 @@
+# TO DO:
+
+* Už asi nic....... Jen kdyby se naskytla nejaka chybka.......
+
+
+
+
+# co je hotovo: 
+
+* forward a backward funkce                                                                                                 -----asi done
+* konzultovat ty funkce na to toceni na miste ----- >>>> popsat a zkouset                                                   -----asi done
+* udelat funkce radius asi taky se zrychlovanim ...... konzultovat                                                          -----asi done
+* udelat funkce na jeti zpet na tlacitko(jedno, 2, 3....) ---> to se zadefinujev robotce ---> io pin ,zase bude p regulator -----asi done
+* udelat funkce forward_acc a backward_acc ---> zrychlovaci a spomalovaci funkce ---> lepsi pro delsi vzdalenosti           -----mozna vymysled ti i slozku, ktera by to upravovala hezcejc
+* udelat swad tlacitka ---> pres wifi a taky to heske graficke tentonons...                                                 -----asi done
+* udelat wifi vypisy...   
+* udelat spomalovaci funkci ale upravit podle predesleho bodu...
+* chtelo by to tu presnost delat postupne a logicky, takze treba prvne zkousek pres wifi terminal co se stane kdy levymu dam 39 a pravymu 40......--- to je na hovno, ty motory reaguji na zmenu rychlosti tak o 5 %
+predelat funkce z motor commands.... , do ty rbcx knhovny...
+upravit readme, udelat ty funkce lepsi... hledat na internetu atd, standa, krivka, adam ma  dobry funkce
+udelat nejake nastavitelne promene jako roztec, sirka kol.... typ motoru
+udelat funkce pro ovladani na dalku (s,w,a,d), (<>)
+
+* preskouset ty smart serva ve stredu-------------------- done
+* examply !!!  --- wasd, terminal, uart --- ano udelat                                      ----- asi done
+
+* do knihovny zaimplementovat uart komunikaci --- z toho co je tady + medved v praze atd.  - udelat    --- asi done
+* vyzkouset zase to wasd  a terminal s wifi delanou robotem..........
+* udelat funkci na srovnani podle zdi s ultrazvukama ---- vzdy 2 senzory ---- > dve funkce pro zadek a bok ---. orient_to_wall---> pomale se bude otacedt dokud nebude stejna hodnota +- cm
+* tu wall folowing nejak slusne pozitelny.... ---- proste problem s motorama nevim jak to vyresit
+* vyzkouset wall_following a poupravit, potom pridat do examplu na jizdu....... 
+*power ---> speed
+* udelat nejako final verzi tech pohybu...   ----> radius --> zrychlovani a presnost , acc a back_buttons a wall_following -----------------
+* zacommitovat ty pohyby
+* vyresit varovani
+# co je hned potreba udelat: 
+
+* vymyslet tu presnost ----> bud na kazdou funkci dat do robotky konstanty, nebo to nejak vymyslet..... ---> mozna na to ted strat a udelat to s tim wifi vypisem...
+
+* presnost zkusit udelat tak ze budeme nastavovat podle polomeru kol ---> kazdy kolo bude muset ujet jinej pocet tiku ---> a pid bude dorovnavat do jejich pomeru-----
+----> treba jeden ma ujet 100 a druhej 50 ---> zatim co prvni mel ujet 50 tak t´druhej 25, ale ujel 23 tak mu pridam ---> zatim u funkce forward, ale jeste potreba doladit, byl by dobrej podle vystupu z wifi ---> takze to drive
+
+* potom tu presnost dale neresit.....  mozna to nechat na vyslednyho robota...
+* zdokumentovat ten uart zkrz novy fotky v osekana robotka
+* udelat dokumentaci knihiovny....  -----> readme   --- ano udelat 
+* citlivost chytrych serv mozne nastavit v init
+* udelat dokumentaci nastavovani serv ty id 0 a 1
+* opravit fotky bo spammmy

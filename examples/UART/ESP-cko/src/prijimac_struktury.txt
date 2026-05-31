@@ -1,0 +1,62 @@
+#include <Arduino.h>
+#include <stdint.h>
+
+#define RX1_PIN   5
+#define TX1_PIN   4  // mimochodem nepotřebujeme, ale Arduino vyžaduje parametry
+
+// Stejná struktura (packed implicitně)
+typedef struct {
+  float   vyska;
+  float   sirka;
+  uint8_t barva;
+} Rozmer;
+
+const uint8_t SYNC0 = 0xAA;
+const uint8_t SYNC1 = 0x55;
+
+enum RxState { WAIT_SYNC0, WAIT_SYNC1, READ_PAYLOAD };
+RxState state = WAIT_SYNC0;
+
+static const size_t PAYLOAD_SIZE = sizeof(Rozmer);
+uint8_t buf[PAYLOAD_SIZE];
+size_t idx = 0;
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial);
+  Serial.println("UART1 Receiver with framing");
+
+  Serial1.begin(115200, SERIAL_8N1, RX1_PIN, TX1_PIN);
+}
+
+void loop() {
+  while (Serial1.available()) {
+    uint8_t c = Serial1.read();
+    switch (state) {
+      case WAIT_SYNC0:
+        if (c == SYNC0) state = WAIT_SYNC1;
+        break;
+      case WAIT_SYNC1:
+        if (c == SYNC1) {
+          state = READ_PAYLOAD;
+          idx = 0;
+        } else {
+          // možná c je už SYNC0, zkusit znovu
+          state = (c == SYNC0) ? WAIT_SYNC1 : WAIT_SYNC0;
+        }
+        break;
+      case READ_PAYLOAD:
+        buf[idx++] = c;
+        if (idx >= PAYLOAD_SIZE) {
+          // máme celý payload
+          Rozmer r;
+          memcpy(&r, buf, PAYLOAD_SIZE);
+          Serial.printf("Rozmer: vyska=%.2f m, sirka=%.2f m, barva=%u\n",
+                        r.vyska, r.sirka, r.barva);
+          state = WAIT_SYNC0;
+        }
+        break;
+    }
+  }
+}
+// dej to chat gpt, at ti to vysvetli, uloz to a zkousej ten s.monitor---ovladani
