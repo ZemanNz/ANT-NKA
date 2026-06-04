@@ -40,6 +40,7 @@ float speed_forward_corr = 1;
 float speed_backward_corr = 1;
 byte inputBT = 0;   
 
+
 int rameno_pos = 65;
 int rDefSpeed = 80; 
 
@@ -247,7 +248,7 @@ void loop() {
 
     if (SerialBT.available() > 0) {
         inputBT = SerialBT.read();
-        SerialBT.print("Prislo: "); SerialBT.println(inputBT );
+        // SerialBT.print("Prislo: "); SerialBT.println(inputBT );
         if ( inputBT == 117) {
             input_speed += 5;
             SerialBT.print("speed: "); SerialBT.println(input_speed);

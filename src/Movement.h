@@ -30,6 +30,9 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
     Serial.print("move: "); Serial.println(speed);
     // Podpora pro jízdu pozpátku
     bool reverse = (mm < 0);
+
+    bool is_set_decel_distance = false;
+    float required_decel_distance = 0; // vzdalenost, za kterou robot dosahne pozadovane rychosti -> pro brzdeni z teto rychlosti
     
     float distance_correction = 1000.0f / 1015.0f; // Kalibrace na míru: ujede 1015 místo 1000
     float target_mm = std::abs(mm) * distance_correction; // Cílová vzdálenost bude vždy kladná (pro výpočet ušlé dráhy)
@@ -49,8 +52,10 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
     float current_base_speed = min_speed * speed_sign;
     
     // Parametry rampy a P-regulátoru
-    float accel_step = abs_target_speed / 100.0f; // Jemná akcelerace (rozjezd na max. rychlost zabere 1 sekundu)
-    float decel_step = abs_target_speed / 150.0f; // Zjemněné zpomalování (táhlejší a hladší dojezd)
+    // float accel_step = abs_target_speed / 100.0f; // Jemná akcelerace (rozjezd na max. rychlost zabere 1 sekundu)
+    // float decel_step = abs_target_speed / 100.0f; // Zjemněné zpomalování (táhlejší a hladší dojezd)
+    float accel_step = 1; // Jemná akcelerace (rozjezd na max. rychlost zabere 1 sekundu)
+    float decel_step = 1; // Zjemněné zpomalování (táhlejší a hladší dojezd)
     float avoid_decel_step = abs_target_speed / 5.0f; // Rychlé zastavení před překážkou (cca 50 ms)
     
     float kp = 1.2f; // P-regulator pro drzeni primeho smeru (zvýšeno z 0.8f pro rychlejší reakci)
@@ -74,7 +79,7 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
     };
 
     float avg_pos = 0.0f;
-    int loop_counter = 0; // Počítadlo průchodů hlavní smyčkou pro zrychlení každý 5. průchod
+    int loop_counter = 0; // Počítadlo průchodů hlavní smyčkou pro zrychlení každý 2. průchod
 
     while (true) { //hlavnismycka 
         loop_counter++;
@@ -90,7 +95,12 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
         float abs_l = std::abs(pos_l);
         float abs_r = std::abs(pos_r);
         avg_pos = (abs_l + abs_r) / 2.0f;
-        
+        float abs_curr = std::abs(current_base_speed);
+        if ( (is_set_decel_distance == false) && ((abs_curr >= abs_target_speed ) || ( avg_pos > (target_mm / 2) )) ) {
+            is_set_decel_distance = true; 
+            required_decel_distance = avg_pos;
+        }
+
         if (avg_pos >= target_mm) {
             avg_pos = target_mm; // Oříznutí na cíl pro přesnost návratové hodnoty
             break; // Dojeli jsme do cíle
@@ -109,7 +119,6 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
         if (obstacle) {
             if (!waiting_for_obstacle) {
                 // Fáze: Rychle plynule zastavit
-                float abs_curr = std::abs(current_base_speed);
                 abs_curr -= avoid_decel_step;
                 if (abs_curr <= 0) {
                     abs_curr = 0;
@@ -135,14 +144,14 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
             
             // Dynamická brzdná dráha: čím rychleji AKTUÁLNĚ jede, tím dál před cílem začne brzdit.
             // Díky tomu to funguje skvěle na 1 metr (dlouhá rampa) i na 50 mm (krátká rampa, nepřestřelí).
-            float required_decel_distance = 4.0f * std::abs(current_base_speed);
+            // float required_decel_distance = 4.0f * std::abs(current_base_speed);
             
             if (dist_remaining <= required_decel_distance) {
                 // Fáze: Běžné plynulé zpomalování před cílem
                 float abs_curr = std::abs(current_base_speed);
                 if (loop_counter % 2 == 1) { // ubírá rychlost pro každý druhý průchod smyčkou pro plynulejší brždění
                     abs_curr -= decel_step;
-                }
+                } 
                 if (abs_curr < min_speed) abs_curr = min_speed;
                 current_base_speed = abs_curr * speed_sign;
             } else {
@@ -160,7 +169,6 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
         
         // Aplikace rychlosti a P-regulátoru pro udržení směru
         if (current_base_speed != 0) {
-            float abs_curr = std::abs(current_base_speed);
             float diff = abs_l - abs_r; // Kladné -> levé kolo ujelo víc
             SerialBT.print(" D "); SerialBT.print(diff);
             Serial.print(" D "); Serial.print(diff);
@@ -170,12 +178,12 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
             // Anti-windup limitace (zamezení přetečení integrátoru)
             //diff_sum = std::max(-50.0f, std::min(diff_sum, 50.0f));
             
-            // PROBLÉM 3: Couvání s vlečným kolečkem je mechanicky nestabilní.
+            // PROBLÉM 3: Couvání s vlečným kolečkem je mechanicky nestabilní. - nepozoruju - zrušeno 
             // Pro couvání použijeme jemnější konstanty (o 40 % menší agresivita).
-            float current_kp = reverse ? (kp * 0.6f) : kp;
+            // float current_kp = reverse ? (kp * 0.6f) : kp;
             //float current_ki = reverse ? (ki * 0.6f) : ki;
             
-            float total_error = (diff * current_kp);
+            float total_error = (diff * kp);
             //float total_error = (diff * current_kp) + (diff_sum * current_ki);
             
             // Dynamický limit: aby to při malých rychlostech mělo vůbec sílu zatáčet, 
