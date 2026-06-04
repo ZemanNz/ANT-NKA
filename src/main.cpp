@@ -40,6 +40,9 @@ float speed_forward_corr = 1;
 float speed_backward_corr = 1;
 byte inputBT = 0;   
 
+int rameno_pos = 65;
+int rDefSpeed = 80; 
+
 void setup() {
     printf("robotka started\n");
 
@@ -101,9 +104,9 @@ void setup() {
 
     // Zvednuti ramene a presun na stred
     Rameno.Up();
-    delay(1000); // Pockame, az vyjede nahoru
+    delay(2000); // Pockame, az vyjede nahoru
     Rameno.Center();
-    delay(1000);
+    delay(2000);
 
     Rameno.fSetDefaultSmartServosSpeed(200);
 
@@ -111,6 +114,8 @@ void setup() {
     //rkWaitForStart(); 
 }
 void loop() {
+
+
 
     // switch (eCurrentState) {
         
@@ -242,19 +247,36 @@ void loop() {
 
     if (SerialBT.available() > 0) {
         inputBT = SerialBT.read();
-        // SerialBT.print("Prislo: "); SerialBT.println(inputBT );
+        SerialBT.print("Prislo: "); SerialBT.println(inputBT );
         if ( inputBT == 117) {
             input_speed += 5;
-            SerialBT.print("speed: "); SerialBT.println(input_speed);  
+            SerialBT.print("speed: "); SerialBT.println(input_speed);
+            Serial.print("speed: "); Serial.println(input_speed);
         }
             
         if ( inputBT == 100) {
             input_speed -= 5;   
-            SerialBT.print("speed: "); SerialBT.println(input_speed);   
+            SerialBT.print("speed: "); SerialBT.println(input_speed);
+            Serial.print("speed: "); Serial.println(input_speed);
         }
+
+        if ( inputBT == 110) { // pismeno n = "nahoru"
+            rameno_pos -= 5;
+            rkSmartServoSoftMove(0, rameno_pos, rDefSpeed ); 
+            SerialBT.print(" RP "); SerialBT.print(rameno_pos); Serial.print(" RP "); Serial.print(rameno_pos);
+        }
+
+        if ( inputBT == 113) { // pismeno q = "dolu" (d snizuje rychlost)
+            rameno_pos += 5;
+            rkSmartServoSoftMove(0, rameno_pos, rDefSpeed ); 
+            SerialBT.print(" RP "); SerialBT.print(rameno_pos); Serial.print(" RP "); Serial.print(rameno_pos);
+        }
+
     }
 
-    // Ruční nastavování pozice Manipulátoru
+
+
+    // testovací jízda vpřed a vzad 
     if ( (rkButtonIsPressed(BTN_UP)) || ( inputBT == 118) )    
         { delay(1000); move_acc_avoid(2000.0f, input_speed, []() { return false; }, 8000); }
     if ( (rkButtonIsPressed(BTN_DOWN)) || ( inputBT == 122) )   
@@ -281,32 +303,32 @@ void loop() {
     }
     
     // KALIBRACE UMBMARK - Ctverec Vpravo (Po smeru hodinovych rucicek)
-    if (rkButton1(true)) { 
-        printf("Startuji kalibracni ctverec VPRAVO (1x)...\n");
-        for (int i = 0; i < 1; i++) {
-            for (int j = 0; j < 4; j++) {
-                move_acc_avoid(1000.0f, 40, []() { return false; }, 8000);
-                delay(300);
-                TurnOnSpotRight_acc(90, 40);
-                delay(300);
-            }
-        }
-        printf("Kalibrace VPRAVO dokoncena!\n");
-    }
+    // if (rkButton1(true)) { 
+    //     printf("Startuji kalibracni ctverec VPRAVO (1x)...\n");
+    //     for (int i = 0; i < 1; i++) {
+    //         for (int j = 0; j < 4; j++) {
+    //             move_acc_avoid(1000.0f, 40, []() { return false; }, 8000);
+    //             delay(300);
+    //             TurnOnSpotRight_acc(90, 40);
+    //             delay(300);
+    //         }
+    //     }
+    //     printf("Kalibrace VPRAVO dokoncena!\n");
+    // }
     
     // KALIBRACE UMBMARK - Ctverec Vlevo (Proti smeru hodinovych rucicek)
-    if (rkButton2(true)) { 
-        printf("Startuji kalibracni ctverec VLEVO (1x)...\n");
-        for (int i = 0; i < 1; i++) {
-            for (int j = 0; j < 4; j++) {
-                move_acc_avoid(1000.0f, 40, []() { return false; }, 8000);
-                delay(300);
-                TurnOnSpotLeft_acc(90, 40);
-                delay(300);
-            }
-        }
-        printf("Kalibrace VLEVO dokoncena!\n");
-    }
+    // if (rkButton2(true)) { 
+    //     printf("Startuji kalibracni ctverec VLEVO (1x)...\n");
+    //     for (int i = 0; i < 1; i++) {
+    //         for (int j = 0; j < 4; j++) {
+    //             move_acc_avoid(1000.0f, 40, []() { return false; }, 8000);
+    //             delay(300);
+    //             TurnOnSpotLeft_acc(90, 40);
+    //             delay(300);
+    //         }
+    //     }
+    //     printf("Kalibrace VLEVO dokoncena!\n");
+    // }
 
 
 

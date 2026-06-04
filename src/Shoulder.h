@@ -23,7 +23,7 @@ public:
     void Magnet(bool on)                    { if (on) { rkServosSetPosition(1, 90); } else { rkServosSetPosition(1, 0); } }    // 90 - drží baterii, 0 - pustí baterii
     
     // Rameno - nahoře
-    void Up(float rSpeed = -1)               { rkSmartServoSoftMove(0, 60, rSpeed < 0 ? rDefaultSpeed : rSpeed); }        
+    void Up(float rSpeed = -1)               { rkSmartServoSoftMove(0, 65, rSpeed < 0 ? rDefaultSpeed : rSpeed); }        
 
     // Rameno - dole
     void Down(float rSpeed = -1)             { rkSmartServoSoftMove(0, 130, rSpeed < 0 ? rDefaultSpeed : rSpeed); }       

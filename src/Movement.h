@@ -27,6 +27,7 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
     if (mm == 0 || speed == 0) { return {true, 0.0f}; }
 
     SerialBT.print("move: "); SerialBT.println(speed);
+    Serial.print("move: "); Serial.println(speed);
     // Podpora pro jízdu pozpátku
     bool reverse = (mm < 0);
     
@@ -52,7 +53,7 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
     float decel_step = abs_target_speed / 150.0f; // Zjemněné zpomalování (táhlejší a hladší dojezd)
     float avoid_decel_step = abs_target_speed / 5.0f; // Rychlé zastavení před překážkou (cca 50 ms)
     
-    float kp = 1.2f; // P-regulator pro drzeni roviny (zvýšeno z 0.8f pro rychlejší reakci)
+    float kp = 1.2f; // P-regulator pro drzeni primeho smeru (zvýšeno z 0.8f pro rychlejší reakci)
     float ki = 0.05f; // Integrální složka pro eliminaci trvalé regulační odchylky
     float diff_sum = 0.0f; // Akumulovaná odchylka (I-složka)
     
@@ -73,14 +74,19 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
     };
 
     float avg_pos = 0.0f;
+    int loop_counter = 0; // Počítadlo průchodů hlavní smyčkou pro zrychlení každý 5. průchod
 
-    while (true) {
+    while (true) { //hlavnismycka 
+        loop_counter++;
         rb::Manager::get().motor(rk::gCtx.motors().idRight()).requestInfo(nullptr);
         float pos_l = rkMotorsGetPositionLeft(true);
         float pos_r = rkMotorsGetPositionRight(false);
         // SerialBT.print("T "); SerialBT.print(millis() - start_time);
+        // Serial.print("T "); Serial.print(millis() - start_time);
         SerialBT.print(" L ");
-        SerialBT.print(pos_l); SerialBT.print(" R "); SerialBT.print(pos_r);   
+        SerialBT.print(pos_l); SerialBT.print(" R "); SerialBT.print(pos_r);
+        Serial.print(" L ");
+        Serial.print(pos_l); Serial.print(" R "); Serial.print(pos_r);
         float abs_l = std::abs(pos_l);
         float abs_r = std::abs(pos_r);
         avg_pos = (abs_l + abs_r) / 2.0f;
@@ -134,44 +140,52 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
             if (dist_remaining <= required_decel_distance) {
                 // Fáze: Běžné plynulé zpomalování před cílem
                 float abs_curr = std::abs(current_base_speed);
-                abs_curr -= decel_step;
+                if (loop_counter % 2 == 1) { // ubírá rychlost pro každý druhý průchod smyčkou pro plynulejší brždění
+                    abs_curr -= decel_step;
+                }
                 if (abs_curr < min_speed) abs_curr = min_speed;
                 current_base_speed = abs_curr * speed_sign;
             } else {
                 // Fáze: Zrychlování a konstantní jízda
                 float abs_curr = std::abs(current_base_speed);
                 if (abs_curr < abs_target_speed) {
-                    abs_curr += accel_step;
+                    if (loop_counter % 2 == 1) { // přidává rychlost každý druhý průchod smyčkou pro plynulejší rozjezd 
+                        abs_curr += accel_step;
+                    }
                     if (abs_curr > abs_target_speed) abs_curr = abs_target_speed;
                 }
                 current_base_speed = abs_curr * speed_sign;
             }
         }
         
-        // Aplikace rychlosti a PI-regulátoru pro udržení směru
+        // Aplikace rychlosti a P-regulátoru pro udržení směru
         if (current_base_speed != 0) {
             float abs_curr = std::abs(current_base_speed);
             float diff = abs_l - abs_r; // Kladné -> levé kolo ujelo víc
-            SerialBT.print(" D "); SerialBT.print(diff);   
+            SerialBT.print(" D "); SerialBT.print(diff);
+            Serial.print(" D "); Serial.print(diff);
             
-            // PI regulátor
-            diff_sum += diff;
+            // P regulátor        PI regulátor jsem vypnul 
+            //diff_sum += diff;
             // Anti-windup limitace (zamezení přetečení integrátoru)
-            diff_sum = std::max(-50.0f, std::min(diff_sum, 50.0f));
+            //diff_sum = std::max(-50.0f, std::min(diff_sum, 50.0f));
             
             // PROBLÉM 3: Couvání s vlečným kolečkem je mechanicky nestabilní.
             // Pro couvání použijeme jemnější konstanty (o 40 % menší agresivita).
             float current_kp = reverse ? (kp * 0.6f) : kp;
-            float current_ki = reverse ? (ki * 0.6f) : ki;
+            //float current_ki = reverse ? (ki * 0.6f) : ki;
             
-            float total_error = (diff * current_kp) + (diff_sum * current_ki);
+            float total_error = (diff * current_kp);
+            //float total_error = (diff * current_kp) + (diff_sum * current_ki);
             
             // Dynamický limit: aby to při malých rychlostech mělo vůbec sílu zatáčet, 
             // garantujeme minimální limit korekce 5%.
-            float max_c = std::max(abs_curr * 0.25f, 5.0f); 
+            float max_c = std::max(abs_curr * 0.5f, 5.0f); 
             float correction = std::max(-max_c, std::min(total_error, max_c));
-            
-            SerialBT.print(" S "); SerialBT.print(abs_curr);   
+                SerialBT.print(" C "); SerialBT.print(correction);
+                Serial.print(" C "); Serial.print(correction);
+                SerialBT.print(" S "); SerialBT.print(abs_curr);
+                Serial.print(" S "); Serial.print(abs_curr);
             float speed_l_abs = abs_curr - correction; // puvodni ****
             float speed_r_abs = abs_curr + correction;
 
@@ -185,21 +199,26 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
             // PROBLÉM 1 a 2: Tohle dělalo to prudké škubnutí před cílem a při couvání.
             // Aplikujeme to jen tehdy, když nám do cíle zbývá VÍCE než 15 mm. 
             // Těsně před cílem necháme rychlost volně klesnout i pod min_speed (setrvačnost to dojede).
-            if (dist_remaining > 15.0f) {
-                if (speed_l_abs < min_speed) {
-                    // Přenášíme jen POLOVINU rozdílu, aby to neškubalo druhým kolem tak silně
-                    speed_r_abs += (min_speed - speed_l_abs) * 0.5f; 
-                    speed_l_abs = min_speed;
-                }
-                if (speed_r_abs < min_speed) {
-                    speed_l_abs += (min_speed - speed_r_abs) * 0.5f; 
-                    speed_r_abs = min_speed;
-                }
-            }
+            // POZOR: Musíme zachovat korekční rozdíl mezi koly, který vytvořil PI regulátor!
+            // // Pokud bychom pouze zvedli pomalejší kolo a ubrali rychlejšímu, PI regulátor nemůže účinně korigovat směr.
+            // if (dist_remaining > 15.0f) {
+            //     if (speed_l_abs < min_speed) {
+            //         float boost = min_speed - speed_l_abs;
+            //         speed_l_abs += boost;
+            //         speed_r_abs += boost; // Stejný boost na obě kola → zachová korekci
+            //     }
+            //     if (speed_r_abs < min_speed) {
+            //         float boost = min_speed - speed_r_abs;
+            //         speed_l_abs += boost;
+            //         speed_r_abs += boost; // Stejný boost na obě kola → zachová korekci
+            //     }
+            // }
             auto real_l_speed = clamp_speed(speed_l_abs * speed_sign);
             auto real_r_speed = clamp_speed(speed_r_abs * speed_sign);
-            SerialBT.print(" l "); SerialBT.print(real_l_speed); 
-            SerialBT.print(" r "); SerialBT.println(real_r_speed);
+                SerialBT.print(" l "); SerialBT.print(real_l_speed);
+                SerialBT.print(" r "); SerialBT.println(real_r_speed);
+                Serial.print(" l "); Serial.print(real_l_speed);
+                Serial.print(" r "); Serial.println(real_r_speed);
             rkMotorsSetSpeed(real_l_speed, real_r_speed);
         } else {
             rkMotorsSetSpeed(0, 0);
