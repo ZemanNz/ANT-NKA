@@ -31,11 +31,15 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
     // Podpora pro jízdu pozpátku
     bool reverse = (mm < 0);
 
-    bool is_set_decel_distance = false;
-    float required_decel_distance = 0; // vzdalenost, za kterou robot dosahne pozadovane rychosti -> pro brzdeni z teto rychlosti
-    
-    float distance_correction = 1000.0f / 1015.0f; // Kalibrace na míru: ujede 1015 místo 1000
-    float target_mm = std::abs(mm) * distance_correction; // Cílová vzdálenost bude vždy kladná (pro výpočet ušlé dráhy)
+    // Kalibrace společná: enkodéry naměřily 1973 mm, reálně ujeto 1965 mm → poměr 1965/1973
+    float encoder_to_real = 1965.0f / 1973.0f; // Společný přepočet enkodér → reálné mm
+    // Individuální kalibrace kol: pravé kolo ujede o 28 mm více než levé na 2000 mm
+    // Enkodér pravého kola podměřuje: ukazuje 2000, ale reálně ujelo 2028.
+    // Pro P-regulátor musíme enkodér pravého kola škálovat NAHORU: 2028/2000
+    float left_calib = 1.0f;                     // Levé kolo je referenční
+    float right_calib = 2028.0f / 2000.0f;       // Pravé kolo škálujeme nahoru (enkodér podměřuje)
+    float real_target_mm = std::abs(mm); // Cílová vzdálenost v reálných mm (vždy kladná)
+    float target_mm = real_target_mm / encoder_to_real; // Odpovídající hodnota na enkodérech
     
     // Normalizace rychlosti (aby znaménko rychlosti odpovídalo směru)
     float abs_target_speed = std::abs(speed);
@@ -49,13 +53,16 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
     float min_speed = 18.0f; // Vráceno na 18. Při nižší rychlosti ztrácí motor kroutící moment a zasekává se
     if (abs_target_speed < min_speed) { abs_target_speed = min_speed; }
     
-    float current_base_speed = min_speed * speed_sign;
+    // Původní kód: start z min_speed
+    // float current_base_speed = min_speed * speed_sign;
+    float current_base_speed = 0; // Rozjezd z nulové rychlosti
     
     // Parametry rampy a P-regulátoru
-    // float accel_step = abs_target_speed / 100.0f; // Jemná akcelerace (rozjezd na max. rychlost zabere 1 sekundu)
-    // float decel_step = abs_target_speed / 100.0f; // Zjemněné zpomalování (táhlejší a hladší dojezd)
-    float accel_step = 1; // Jemná akcelerace (rozjezd na max. rychlost zabere 1 sekundu)
-    float decel_step = 1; // Zjemněné zpomalování (táhlejší a hladší dojezd)
+    // Původní kód: pevný accel_step/decel_step = 1
+    // float accel_step = 1;
+    // float decel_step = 1;
+    float accel_step = abs_target_speed / 50.0f; // Rozjezd na max. rychlost zabere cca 50 kroků = 0.5s (při delay 10ms)
+    float decel_step = abs_target_speed / 30.0f; // Zpomalení z max. rychlosti zabere cca 30 kroků = 0.3s (rychlejší brzdění)
     float avoid_decel_step = abs_target_speed / 5.0f; // Rychlé zastavení před překážkou (cca 50 ms)
     
     float kp = 1.2f; // P-regulator pro drzeni primeho smeru (zvýšeno z 0.8f pro rychlejší reakci)
@@ -92,27 +99,34 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
         SerialBT.print(pos_l); SerialBT.print(" R "); SerialBT.print(pos_r);
         Serial.print(" L ");
         Serial.print(pos_l); Serial.print(" R "); Serial.print(pos_r);
-        float abs_l = std::abs(pos_l);
-        float abs_r = std::abs(pos_r);
-        avg_pos = (abs_l + abs_r) / 2.0f;
+        // RAW hodnoty enkodérů (pro P-regulátor - ten potřebuje skutečný rozdíl otáček)
+        float raw_l = std::abs(pos_l);
+        float raw_r = std::abs(pos_r);
+        // Kalibrované hodnoty (jen pro výpočet průměru a reálné vzdálenosti)
+        float calib_l = raw_l * left_calib;
+        float calib_r = raw_r * right_calib;
+        avg_pos = (calib_l + calib_r) / 2.0f;
+        // P-regulátor pracuje s RAW enkodéry (skutečný rozdíl otáček kol)
+        float abs_l = raw_l;
+        float abs_r = raw_r;
         float abs_curr = std::abs(current_base_speed);
-        if ( (is_set_decel_distance == false) && ((abs_curr >= abs_target_speed ) || ( avg_pos > (target_mm / 2) )) ) {
-            is_set_decel_distance = true; 
-            required_decel_distance = avg_pos;
-        }
 
-        if (avg_pos >= target_mm) {
-            avg_pos = target_mm; // Oříznutí na cíl pro přesnost návratové hodnoty
+        float real_pos = avg_pos * encoder_to_real; // Přepočet enkodérů na reálnou vzdálenost
+
+        // Porovnáváme v reálných mm (aby robot reálně dojel přesně zadanou vzdálenost)
+        if (real_pos >= real_target_mm) {
+            real_pos = real_target_mm; // Oříznutí pro přesnost návratové hodnoty
+            avg_pos = real_pos / encoder_to_real; // Odpovídající hodnota enkodérů
             break; // Dojeli jsme do cíle
         }
         
         // Časový limit pro celou funkci (pokud se někde nezasekne natrvalo)
         if ((millis() - start_time > general_timeout_ms) && !waiting_for_obstacle) {
             rkMotorsSetSpeed(0, 0);
-            return {false, reverse ? -avg_pos : avg_pos}; 
+            return {false, reverse ? -(avg_pos * encoder_to_real) : (avg_pos * encoder_to_real)}; 
         }
         
-        float dist_remaining = target_mm - avg_pos;
+        float dist_remaining = real_target_mm - real_pos;
         
         bool obstacle = is_obstacle();
         
@@ -131,7 +145,7 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
                 current_base_speed = 0;
                 if (millis() - avoid_wait_start > wait_timeout_ms) {
                     rkMotorsSetSpeed(0, 0);
-                    return {false, reverse ? -avg_pos : avg_pos}; // Překážka nezmizela v limitu
+                    return {false, reverse ? -(avg_pos * encoder_to_real) : (avg_pos * encoder_to_real)}; // Překážka nezmizela v limitu
                 }
             }
         } else {
@@ -139,20 +153,23 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
                 // Překážka právě zmizela, pokračujeme v jízdě
                 waiting_for_obstacle = false;
                 start_time += (millis() - avoid_wait_start); // Posuneme celkový timeout
-                current_base_speed = min_speed * speed_sign; 
+                // Původní kód: restart z min_speed
+                // current_base_speed = min_speed * speed_sign; 
+                current_base_speed = 0; // Rozjezd z nulové rychlosti
             }
-            
             // Dynamická brzdná dráha: čím rychleji AKTUÁLNĚ jede, tím dál před cílem začne brzdit.
-            // Díky tomu to funguje skvěle na 1 metr (dlouhá rampa) i na 50 mm (krátká rampa, nepřestřelí).
-            // float required_decel_distance = 4.0f * std::abs(current_base_speed);
+            // Přepočítává se každou smyčku podle aktuální rychlosti.
+            float required_decel_distance = 4.0f * abs_curr;
             
             if (dist_remaining <= required_decel_distance) {
                 // Fáze: Běžné plynulé zpomalování před cílem
                 float abs_curr = std::abs(current_base_speed);
                 if (loop_counter % 2 == 1) { // ubírá rychlost pro každý druhý průchod smyčkou pro plynulejší brždění
                     abs_curr -= decel_step;
-                } 
-                if (abs_curr < min_speed) abs_curr = min_speed;
+                }
+                // Původní kód: brzdění jen do min_speed
+                // if (abs_curr < min_speed) abs_curr = min_speed;
+                if (abs_curr < 0) abs_curr = 0; // Brzdění až do nulové rychlosti
                 current_base_speed = abs_curr * speed_sign;
             } else {
                 // Fáze: Zrychlování a konstantní jízda
@@ -188,7 +205,8 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
             
             // Dynamický limit: aby to při malých rychlostech mělo vůbec sílu zatáčet, 
             // garantujeme minimální limit korekce 5%.
-            float max_c = std::max(abs_curr * 0.5f, 5.0f); 
+            float curr_speed = std::abs(current_base_speed);
+            float max_c = std::max(curr_speed * 0.5f, 5.0f); 
             float correction = std::max(-max_c, std::min(total_error, max_c));
                 SerialBT.print(" C "); SerialBT.print(correction);
                 Serial.print(" C "); Serial.print(correction);
@@ -235,7 +253,9 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
     }
     
     rkMotorsSetSpeed(0, 0);
-    return {true, reverse ? -avg_pos : avg_pos};
+    // Vracíme reálnou ujetou vzdálenost (v reálných mm)
+    float real_traveled = avg_pos * encoder_to_real;
+    return {true, reverse ? -real_traveled : real_traveled};
 }
 
 /**
