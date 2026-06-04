@@ -15,7 +15,7 @@ GameManager RoadsideGame;
 // Nastavení Časovače
 ContestTimer GameTimer; 
 
-// Globální instance Ramene (propojí se přes extern všude tam, kde je Shoulder.h)
+// Globální instance Ramene (propojí se přes extern všude tam, kde je Shoulder.h) 
 Shoulder Rameno;
 
 // --- Proměnné pro MENU ---
