@@ -6,8 +6,6 @@
 #include <cmath>
 #include "robotka.h"
 #include "_librk_context.h"
-#include "BluetoothSerial.h"
-BluetoothSerial SerialBT; 
 
 struct MoveResult {
     bool success;
@@ -26,7 +24,6 @@ struct MoveResult {
 inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is_obstacle, uint32_t wait_timeout_ms = 5000) {
     if (mm == 0 || speed == 0) { return {true, 0.0f}; }
 
-    SerialBT.print("move: "); SerialBT.println(speed);
     Serial.print("move: "); Serial.println(speed);
     // Podpora pro jízdu pozpátku
     bool reverse = (mm < 0);
@@ -93,10 +90,6 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
         rb::Manager::get().motor(rk::gCtx.motors().idRight()).requestInfo(nullptr);
         float pos_l = rkMotorsGetPositionLeft(true);
         float pos_r = rkMotorsGetPositionRight(false);
-        // SerialBT.print("T "); SerialBT.print(millis() - start_time);
-        // Serial.print("T "); Serial.print(millis() - start_time);
-        SerialBT.print(" L ");
-        SerialBT.print(pos_l); SerialBT.print(" R "); SerialBT.print(pos_r);
         Serial.print(" L ");
         Serial.print(pos_l); Serial.print(" R "); Serial.print(pos_r);
         // RAW hodnoty enkodérů (pro P-regulátor - ten potřebuje skutečný rozdíl otáček)
@@ -187,7 +180,6 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
         // Aplikace rychlosti a P-regulátoru pro udržení směru
         if (current_base_speed != 0) {
             float diff = abs_l - abs_r; // Kladné -> levé kolo ujelo víc
-            SerialBT.print(" D "); SerialBT.print(diff);
             Serial.print(" D "); Serial.print(diff);
             
             // P regulátor        PI regulátor jsem vypnul 
@@ -208,9 +200,7 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
             float curr_speed = std::abs(current_base_speed);
             float max_c = std::max(curr_speed * 0.5f, 5.0f); 
             float correction = std::max(-max_c, std::min(total_error, max_c));
-                SerialBT.print(" C "); SerialBT.print(correction);
                 Serial.print(" C "); Serial.print(correction);
-                SerialBT.print(" S "); SerialBT.print(abs_curr);
                 Serial.print(" S "); Serial.print(abs_curr);
             float speed_l_abs = abs_curr - correction; // puvodni ****
             float speed_r_abs = abs_curr + correction;
@@ -241,8 +231,6 @@ inline MoveResult move_acc_avoid(float mm, float speed, std::function<bool()> is
             // }
             auto real_l_speed = clamp_speed(speed_l_abs * speed_sign);
             auto real_r_speed = clamp_speed(speed_r_abs * speed_sign);
-                SerialBT.print(" l "); SerialBT.print(real_l_speed);
-                SerialBT.print(" r "); SerialBT.println(real_r_speed);
                 Serial.print(" l "); Serial.print(real_l_speed);
                 Serial.print(" r "); Serial.println(real_r_speed);
             rkMotorsSetSpeed(real_l_speed, real_r_speed);

@@ -229,7 +229,7 @@ public:
     // ============================================================
 
     // Najde, dojede a sebere nejbližší baterii.
-    void fTakeClosestBattery(float& fRobotX) {
+    void fTakeClosestBattery(float& fRobotX, float rSpeed = 40.0f) {
 
         // Najití ID nejbližší baterie
         int iClosestBatteryID = fFindClosestBattery(fRobotX);
@@ -244,7 +244,7 @@ public:
             float rDistanceToGo = rX - fRobotX;
             
             // Jízda na místo s neustálou detekcí překážek
-            MoveResult result = move_acc_avoid(rDistanceToGo, 60, fGetObstacleChecker(rDistanceToGo), 5000);
+            MoveResult result = move_acc_avoid(rDistanceToGo, rSpeed, fGetObstacleChecker(rDistanceToGo), 5000);
             
             // Aktualizace přesné X-ové pozice na hřišti (ať už dojel nebo ne)
             fRobotX += result.traveled_mm; 
@@ -285,7 +285,7 @@ public:
     }
 
     // Najde, dojede a vyloží baterii do nejbližšího volného Docku. 
-    void fFillClosestDock(float& fRobotX) {
+    void fFillClosestDock(float& fRobotX, float rSpeed = 40.0f) {
 
         // Najití ID nejbližšího prázdného Docku
         int iClosestDockID = fFindClosestEmptyDock(fRobotX);
@@ -300,7 +300,7 @@ public:
             float rDistanceToGo = rX - fRobotX;
             
             // Jízda na místo s neustálou detekcí překážek
-            MoveResult result = move_acc_avoid(rDistanceToGo, 60, fGetObstacleChecker(rDistanceToGo), 5000);
+            MoveResult result = move_acc_avoid(rDistanceToGo, rSpeed, fGetObstacleChecker(rDistanceToGo), 5000);
             
             // Aktualizace přesné X-ové pozice na hřišti (ať už dojel nebo ne)
             fRobotX += result.traveled_mm; 
@@ -315,8 +315,8 @@ public:
                 Rameno.Side(iBasePos);
                 delay(1000);
                 
-                // Sjetí k Docku
-                Rameno.Down();
+                // Sjetí k Docku (použití DownUnload pro bezpečnější vyložení)
+                Rameno.DownUnload();
                 delay(1000);
 
                 // Puštění baterie
