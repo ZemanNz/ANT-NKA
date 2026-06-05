@@ -237,6 +237,12 @@ inline void gyroRequestCalibration() {
 
 /**
  * \brief Jízda rovně stabilizovaná gyroskopem k absolutnímu cílovému úhlu.
+ * 
+ * Rychlostní profil:
+ *   1. ROZJEZD: Plynulé zrychlení z 0% na požadovanou rychlost (časová rampa)
+ *   2. PLAVBA:  Konstantní rychlost s gyro korekcí směru
+ *   3. BRZDĚNÍ: Plynulé zpomalení na dojezdovou rychlost (podle zbývající vzdálenosti)
+ *   4. DOJEZD:  Přesné dojetí na cíl velmi nízkou rychlostí (crawl_speed)
  */
 inline MoveResult move_straight_gyro(float mm, float speed, uint32_t timeout_ms = 5000, float target_heading = 0.0f) {
     if (mm == 0 || speed == 0) { return {true, 0.0f}; }
@@ -250,21 +256,28 @@ inline MoveResult move_straight_gyro(float mm, float speed, uint32_t timeout_ms 
     rkMotorsSetPositionRight(0);
     delay(50);
 
-    // gyroResetZ(); // Odstraněno pro podporu absolutního trackování
-
-    float min_speed = 18.0f;
+    // === PARAMETRY RAMP ===
     float abs_target_speed = std::abs(speed);
-    if (abs_target_speed < min_speed) { abs_target_speed = min_speed; }
+    if (abs_target_speed < 5.0f) abs_target_speed = 5.0f;
+    if (abs_target_speed > 100.0f) abs_target_speed = 100.0f;
 
-    float current_base_speed = 0.0f;
+    float crawl_speed = 4.0f;            // Dojezdová rychlost (4 %) pro přesný dojezd
+    float accel_time_ms = 600.0f;         // Doba rozjezdu z 0 na cílovou rychlost [ms]
+    float decel_distance_mm = 80.0f;      // Vzdálenost pro zpomalení na crawl [mm]
+    float crawl_distance_mm = 15.0f;      // Posledních 15 mm jedeme crawl rychlostí
+
+    // Pokud je celková vzdálenost krátká, přizpůsobíme rampy
+    if (real_target_mm < 100.0f) {
+        decel_distance_mm = real_target_mm * 0.5f;
+        crawl_distance_mm = real_target_mm * 0.2f;
+        accel_time_ms = 300.0f;
+    }
+
     float speed_sign = reverse ? -1.0f : 1.0f;
-
-    float accel_step = abs_target_speed / 50.0f;
-    float decel_step = abs_target_speed / 30.0f;
-
-    float kp_gyro = 0.25f; // Citlivost gyro regulace (mírná pro zamezení rozkmitání při jízdě rovně)
+    float kp_gyro = 0.25f;               // P-regulátor pro korekci směru
 
     unsigned long start_time = millis();
+    float current_speed = 0.0f;           // Aktuální rychlost (0–100 %)
 
     auto clamp_speed = [](float s) -> int8_t {
         if (s > 100.0f) return 100;
@@ -277,42 +290,64 @@ inline MoveResult move_straight_gyro(float mm, float speed, uint32_t timeout_ms 
 
     while (true) {
         loop_counter++;
+        unsigned long now = millis();
+        float elapsed_ms = (float)(now - start_time);
+
+        // Čtení enkodérů
         rb::Manager::get().motor(rk::gCtx.motors().idRight()).requestInfo(nullptr);
         float pos_l = std::abs(rkMotorsGetPositionLeft(true));
         float pos_r = std::abs(rkMotorsGetPositionRight(false));
         avg_pos = (pos_l + pos_r) / 2.0f;
         float real_pos = avg_pos * encoder_to_real;
 
+        // Cíl dosažen
         if (real_pos >= real_target_mm) {
             break;
         }
 
-        if (millis() - start_time > timeout_ms) {
+        // Timeout
+        if (elapsed_ms > (float)timeout_ms) {
             rkMotorsSetSpeed(0, 0);
             return {false, reverse ? -real_pos : real_pos};
         }
 
         float dist_remaining = real_target_mm - real_pos;
-        float abs_curr = std::abs(current_base_speed);
 
-        // Brzdná dráha a rampy
-        float required_decel_distance = 4.0f * abs_curr;
-        if (dist_remaining <= required_decel_distance) {
-            if (loop_counter % 2 == 1) {
-                abs_curr -= decel_step;
-            }
-            if (abs_curr < min_speed) abs_curr = min_speed;
+        // === VÝPOČET CÍLOVÉ RYCHLOSTI ===
+        float desired_speed;
+
+        if (dist_remaining <= crawl_distance_mm) {
+            // FÁZE 4: DOJEZD — jedeme crawl rychlostí pro přesnost
+            desired_speed = crawl_speed;
+        } else if (dist_remaining <= decel_distance_mm) {
+            // FÁZE 3: BRZDĚNÍ — lineární pokles z aktuální rychlosti na crawl
+            float decel_progress = (dist_remaining - crawl_distance_mm) / (decel_distance_mm - crawl_distance_mm);
+            desired_speed = crawl_speed + (abs_target_speed - crawl_speed) * decel_progress;
+        } else if (elapsed_ms < accel_time_ms) {
+            // FÁZE 1: ROZJEZD — plynulé zrychlení z 0 na cílovou rychlost (časová rampa)
+            float accel_progress = elapsed_ms / accel_time_ms;
+            // Použijeme S-křivku (smoothstep) pro plynulejší rozjezd bez cuknutí
+            float smooth = accel_progress * accel_progress * (3.0f - 2.0f * accel_progress);
+            desired_speed = crawl_speed + (abs_target_speed - crawl_speed) * smooth;
         } else {
-            if (abs_curr < abs_target_speed) {
-                if (loop_counter % 2 == 1) {
-                    abs_curr += accel_step;
-                }
-                if (abs_curr > abs_target_speed) abs_curr = abs_target_speed;
-            }
+            // FÁZE 2: PLAVBA — plná rychlost
+            desired_speed = abs_target_speed;
         }
-        current_base_speed = abs_curr * speed_sign;
 
-        // Gyro korekce směru k absolutnímu cíli target_heading
+        // Omezení rychlosti změny (anti-jerk filtr)
+        float max_speed_change = 2.0f; // max změna rychlosti za 1 iteraci (10ms)
+        if (desired_speed > current_speed + max_speed_change) {
+            current_speed += max_speed_change;
+        } else if (desired_speed < current_speed - max_speed_change) {
+            current_speed -= max_speed_change;
+        } else {
+            current_speed = desired_speed;
+        }
+
+        // Nikdy nejezdi pod crawl (pokud ještě nedobrzdil na 0)
+        if (current_speed < crawl_speed) current_speed = crawl_speed;
+
+        // === GYRO KOREKCE SMĚRU ===
         float heading = gyroGetAngleZ();
         float heading_error = heading - target_heading;
         float correction = heading_error * kp_gyro;
@@ -320,20 +355,25 @@ inline MoveResult move_straight_gyro(float mm, float speed, uint32_t timeout_ms 
             correction = -correction;
         }
 
-        float speed_l_abs = abs_curr + correction;
-        float speed_r_abs = abs_curr - correction;
+        float speed_l = current_speed + correction;
+        float speed_r = current_speed - correction;
 
-        if (loop_counter % 10 == 0) {
-            Serial.printf("[GyroDrive] Pos: %.1f mm | Heading: %.2f deg | Target: %.1f deg | Corr: %.2f | Speed L/R: %.1f / %.1f\n", 
-                          real_pos, heading, target_heading, correction, speed_l_abs * speed_sign, speed_r_abs * speed_sign);
+        // Diagnostika
+        if (loop_counter % 15 == 0) {
+            Serial.printf("[GyroDrive] Pos: %.1f/%.1f mm | Rem: %.1f | Speed: %.1f%% | Head: %.2f° | Corr: %.2f\n", 
+                          real_pos, real_target_mm, dist_remaining, current_speed, heading, correction);
         }
 
-        rkMotorsSetSpeed(clamp_speed(speed_l_abs * speed_sign), clamp_speed(speed_r_abs * speed_sign));
+        rkMotorsSetSpeed(clamp_speed(speed_l * speed_sign), clamp_speed(speed_r * speed_sign));
         delay(10);
     }
 
     rkMotorsSetSpeed(0, 0);
     float real_traveled = avg_pos * encoder_to_real;
+    
+    Serial.printf("[GyroDrive] Finished: Traveled %.1f mm (target %.1f mm, error %.1f mm)\n",
+                  real_traveled, real_target_mm, real_target_mm - real_traveled);
+    
     return {true, reverse ? -real_traveled : real_traveled};
 }
 

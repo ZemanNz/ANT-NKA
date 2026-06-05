@@ -4,15 +4,10 @@
 #include <vector>
 #include <functional>
 #include <cmath> // Přidáno pro matematickou funkci abs
+#include "GameDimensions.h"
 #include "Movement.h"
 #include "Shoulder.h"
 
-// Definice barev týmů
-enum class TeamColor {
-    Blue,
-    Red,
-    Unknown
-};
 
 // Stavy elektromobilu (Docku)
 enum class DockStatus {
@@ -74,24 +69,6 @@ public:
     uint32_t iObstacleStopZoneMm = 150; // Zóna, ve které robot zastaví před překážkou (v mm)
 
     void fInitGame(int iButtonClicks, TeamColor ChosenColor) {
-        std::vector<std::vector<TeamColor>> vAllLayouts = {
-            // Kombinace 0: Naše auto (Blue) je 1. v pořadí zleva
-            {TeamColor::Blue, TeamColor::Red, TeamColor::Red, TeamColor::Red,
-             TeamColor::Blue, TeamColor::Blue, TeamColor::Blue, TeamColor::Red},
-
-            // Kombinace 1: Naše auto (Blue) je 2. v pořadí zleva
-            {TeamColor::Red, TeamColor::Blue, TeamColor::Red, TeamColor::Red,
-             TeamColor::Blue, TeamColor::Blue, TeamColor::Red, TeamColor::Blue},
-
-            // Kombinace 2: Naše auto (Blue) je 3. v pořadí zleva
-            {TeamColor::Red, TeamColor::Red, TeamColor::Blue, TeamColor::Red,
-             TeamColor::Blue, TeamColor::Red, TeamColor::Blue, TeamColor::Blue},
-
-            // Kombinace 3: Naše auto (Blue) je 4. v pořadí zleva
-            {TeamColor::Red, TeamColor::Red, TeamColor::Red, TeamColor::Blue,
-             TeamColor::Red, TeamColor::Blue, TeamColor::Blue, TeamColor::Blue}
-        };
-
         // Zabezpečení kliknutí a zacyklení
         int iSelectedLayoutIndex = iButtonClicks % 4;
         
@@ -102,8 +79,14 @@ public:
         printf("Pocet kliknuti: %d\n", iButtonClicks);
         printf("Vybrany index kombinace: %d\n", iSelectedLayoutIndex);
 
+        // Zkopírování vybrané kombinace z GameDimensions
+        std::vector<TeamColor> currentLayout(8);
+        for (int i = 0; i < 8; ++i) {
+            currentLayout[i] = GameDimensions::DOCK_LAYOUTS[iSelectedLayoutIndex][i];
+        }
+
         // Vnitřní volání nastavovacích funkcí
-        fSetupDocks(vAllLayouts[iSelectedLayoutIndex], ChosenColor);
+        fSetupDocks(currentLayout, ChosenColor);
         fSetupBatteries();
     }
 
@@ -115,10 +98,6 @@ public:
         MyColor = ChosenColor;
         vDocks.clear(); // Pro jistotu vyčistíme předchozí data
 
-        // Fyzické pozice 8 Docků na hřišti v mm
-        float rFixedXPositions[8] = {180, 550, 920, 1300, 1700, 2080, 2450, 2820};
-        float rFixedYPosition = 100.0f; 
-
         // Defaultní nastavení všech 8 Docků (Pozice|Stav|Barva)
         for (int i = 0; i < 8; ++i) {
             DockStatus CurrentStatus;
@@ -126,26 +105,15 @@ public:
             if (vDrawnLayout[i] == MyColor) { CurrentStatus = DockStatus::Empty; }
             else { CurrentStatus = DockStatus::Enemy; }
             
-            vDocks.push_back({{rFixedXPositions[i], rFixedYPosition}, vDrawnLayout[i], CurrentStatus}); 
+            vDocks.push_back({{GameDimensions::DOCK_X_POSITIONS[i], GameDimensions::DOCK_Y_POSITION}, vDrawnLayout[i], CurrentStatus}); 
         }
     }
 
-    // Inicializace všech 8 Baterií (2 řady, 4 sloupce)
+    // Inicializace všech 8 Baterií
     void fSetupBatteries() {
         vBatteries.clear();
-        
-        // X souřadnice pro 4 sloupce (kolem středu 1500 mm)
-        float rX_Positions[4] = {1300.0f, 1430.0f, 1570.0f, 1700.0f}; 
-        
-        // Y souřadnice pro 2 řady (kolem středu 1000 mm)
-        float rY_Closer = 950.0f;   // Bližší k autům
-        float rY_Farther = 1050.0f; // Vzdálenější od aut
-        
-        for (int i = 0; i < 4; ++i) {
-            // Vložíme bližší baterii
-            vBatteries.push_back({{rX_Positions[i], rY_Closer}, BatteryStatus::Available});
-            // Vložíme vzdálenější baterii
-            vBatteries.push_back({{rX_Positions[i], rY_Farther}, BatteryStatus::Available});
+        for (int i = 0; i < 8; ++i) {
+            vBatteries.push_back({{GameDimensions::BATTERIES[i].x, GameDimensions::BATTERIES[i].y}, BatteryStatus::Available});
         }
     }
 

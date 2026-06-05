@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <string>
 
+#include "GameDimensions.h"
 #include "Roadside.h"
 #include "Movement.h"
 #include "movement_gyro.h"
@@ -33,7 +34,7 @@ int iSelectedLayout = 0;
 bool bRoadsideGameStarted = false;
 
 
-float rCurrentRobotX = 1400.0f; 
+float rCurrentRobotX = GameDimensions::POCATECNI_X_STRED_MM; // 330 mm (střed robota od zdi)
 float rCurrentRobotY = 200.0f;  
 
 int input_speed = 40;
@@ -258,213 +259,236 @@ void loop() {
     }
     */
 
-    // Tlačítko ON: Kompletní soutěžní sekvence (3 baterky)
-    if (rkButtonOn(true)) {
-        printf("=== START SOUTĚŽNÍ SEKVENČNÍ JÍZDY ===\n");
+    // ================================================================
+    // SOUTĚŽNÍ FUNKCE
+    // ================================================================
+
+    // Aktuální pozice středu robota na hřišti (osa X, od levé zdi)
+    // RED startuje vpravo (X≈2670), BLUE vlevo (X≈330)
+    // "Dopředu" pro RED = směr -X, pro BLUE = směr +X
+
+    /**
+     * Dojeď tak, aby rameno bylo nad cílovou X pozicí.
+     * Automaticky počítá s offsetem ramena a směrem jízdy dle barvy týmu.
+     */
+    auto dojed_k = [](float& current_x, float target_arm_x, bool isRed, float spd = 35.0f) {
+        float center_target;
+        if (isRed) {
+            // RED jede v -X: rameno je NAPRAVO od středu (vyšší X)
+            center_target = target_arm_x - GameDimensions::RAMENO_OD_STREDU_MM;
+        } else {
+            // BLUE jede v +X: rameno je NALEVO od středu (nižší X)
+            center_target = target_arm_x + GameDimensions::RAMENO_OD_STREDU_MM;
+        }
+        float distance = isRed ? (current_x - center_target) : (center_target - current_x);
+        printf("[DOJED] Z X=%.0f -> cíl ramene X=%.0f (střed=%.0f), vzdálenost=%.0f mm\n",
+               current_x, target_arm_x, center_target, distance);
         
-        // Indikace LED a čekání 1 sekundu po stisku
+        uint32_t timeout = (uint32_t)(std::abs(distance) / 0.3f) + 3000; // dynamický timeout
+        MoveResult res = move_straight_gyro(distance, spd, timeout, 0.0f);
+        
+        // Aktualizace pozice
+        if (isRed) { current_x -= res.traveled_mm; }
+        else       { current_x += res.traveled_mm; }
+        printf("[DOJED] Nová pozice středu: X=%.0f mm\n", current_x);
+    };
+
+    /**
+     * Chyť baterku: otoč se k bateriím, seber ramenem, otoč zpět.
+     * Končí s ramenem v pozici Up+Center (reset).
+     */
+    auto chyt_baterku = [](bool isRed) {
+        float grab_angle = isRed ? -90.0f : 90.0f;
+        printf("[GRAB] Otáčím se o %.0f° k bateriím...\n", grab_angle);
+        
+        turn_gyro(grab_angle, 40);
+        align_gyro(grab_angle, 30);
+        
+        Rameno.Center();
+        delay(800);
+        Rameno.Down();
+        delay(800);
+        Rameno.Magnet(true);
+        delay(600);
+        Rameno.Up();
+        delay(800);
+        
+        printf("[GRAB] Otáčím zpět na 0°...\n");
+        turn_gyro(0.0f, 40);
+        align_gyro(0.0f, 30);
+        
+        Rameno.Center();
+        delay(300);
+        printf("[GRAB] Baterka chycena!\n");
+    };
+
+    /**
+     * Pusť baterku do docku: rameno na bok, dolů, pusť, zpět.
+     * Končí s ramenem v pozici Up+Center (reset) a magnetem zapnutým (pro další baterku).
+     */
+    auto pust_baterku = [](bool isRed) {
+        // RED: dock je vlevo od robota (iLeft), BLUE: dock je vpravo (iRight)
+        // ...ale záleží na fyzickém uspořádání. Používáme logiku z Roadside.h:
+        int drop_side = isRed ? Rameno.iLeft : Rameno.iRight;
+        printf("[DROP] Vykládám baterku na stranu %d...\n", drop_side);
+        
+        align_gyro(0.0f, 30);
+        Rameno.Side(drop_side);
+        delay(800);
+        Rameno.DownUnload();
+        delay(800);
+        Rameno.Magnet(false);
+        delay(500);
+        Rameno.Up();
+        delay(800);
+        
+        align_gyro(0.0f, 30);
+        Rameno.Center();
+        delay(300);
+        
+        // Nachystání magnetu na další baterku
+        Rameno.Magnet(true);
+        delay(200);
+        printf("[DROP] Baterka vložena do docku!\n");
+    };
+
+    // ================================================================
+    // TLAČÍTKO ON: SOUTĚŽNÍ JÍZDA
+    // ================================================================
+    if (rkButtonOn(true)) {
+        // === NASTAVENÍ ZÁPASU ===
+        bool isRed = true;                // <<< ZDE ZMĚNIT BARVU TÝMU
+        int layout_idx = 0;              // <<< ZDE ZMĚNIT KOMBINACI (0-3)
+        float race_speed = 35.0f;        // Rychlost jízdy (%)
+        
+        // Počáteční pozice (RED = pravá strana, BLUE = levá)
+        float pos_x;
+        if (isRed) {
+            pos_x = GameDimensions::FIELD_WIDTH_MM - GameDimensions::STARTZONE_CENTER_MM 
+                    - GameDimensions::ZADEK_OD_STREDU_MM; // 2670 mm
+        } else {
+            pos_x = GameDimensions::POCATECNI_X_STRED_MM; // 330 mm
+        }
+
+        printf("=== SOUTĚŽNÍ JÍZDA ===\n");
+        printf("Tým: %s | Kombinace: %d | Start X: %.0f mm\n", 
+               isRed ? "ČERVENÝ" : "MODRÝ", layout_idx, pos_x);
+
+        // Indikace + čekání
         rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
         delay(1000);
         rkLedAll(false);
 
-        // Vynulování absolutního gyroskopu na začátku celé jízdy
+        // Reset gyroskopu
         gyroResetZ();
         delay(50);
 
-        // ================== 1. BATERKA ==================
-        // 1. Jízda 118 cm dopředu k 1. baterce -> Zelená LED
-        printf("Jízda 118 cm k 1. baterce...\n");
-        rkLedGreen(true);
-        move_straight_gyro(1180.0f, 40, 8000, 0.0f); // Sledujeme směr 0.0
-        rkLedGreen(false);
+        // === ROZLOŽENÍ DOCKŮ ===
+        const TeamColor* layout = GameDimensions::DOCK_LAYOUTS[layout_idx];
+        TeamColor myColor = isRed ? TeamColor::Red : TeamColor::Blue;
 
-        // 2. Uchopení 1. baterky otočením doleva -> Žlutá LED
-        printf("Otočení doleva a uchopení 1. baterky...\n");
-        rkLedYellow(true);
-        turn_gyro(90.0f, 40);
-        align_gyro(90.0f, 30);
-        Rameno.Center();
-        delay(1000);
-        Rameno.Down();
-        delay(1000);
-        Rameno.Magnet(true);
-        delay(1000);
-        Rameno.Up();
-        delay(1000);
-        printf("Otočení zpět na směr 0.0...\n");
-        turn_gyro(0.0f, 40);
-        align_gyro(0.0f, 30);
-        rkLedYellow(false);
-
-        // 3. Popojet dopředu o 35 cm k 1. vykládací zóně -> Zelená LED
-        printf("Popojetí 35 cm k vykládací zóně...\n");
-        rkLedGreen(true);
-        move_straight_gyro(350.0f, 40, 4000, 0.0f); // Sledujeme směr 0.0
-        rkLedGreen(false);
-
-        // 4. Vyložení 1. baterky vlevo (bez otáčení robota, šetrnější výška 95°) -> Žlutá LED
-        printf("Vyložení 1. baterky vlevo...\n");
-        rkLedYellow(true);
-        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Side)
-        Rameno.Side(Rameno.iLeft);
-        delay(1000);
-        Rameno.DownUnload(); // Výška 95 stupňů
-        delay(1000);
-        Rameno.Magnet(false);
-        delay(500);
-        Rameno.Up();
-        delay(1000);
-        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Center)
-        Rameno.Center();
-        delay(1000);
-        rkLedYellow(false);
-
-        // ================== 2. BATERKA ==================
-        // 5. Zacouvat zpět o 40 cm (153 cm -> 113 cm, tj. 118 cm s přejetím o 5 cm) -> Červená LED
-        printf("Zacouvání 40 cm zpět na úroveň 113 cm (sběr s přejezdem o 5 cm)...\n");
-        rkLedRed(true);
-        move_straight_gyro(-400.0f, 40, 4000, 0.0f); // Sledujeme směr 0.0
-        rkLedRed(false);
-
-        // 6. Uchopení 2. baterky otočením doleva -> Žlutá LED
-        printf("Otočení doleva a uchopení 2. baterky...\n");
-        rkLedYellow(true);
-        turn_gyro(90.0f, 40);
-        align_gyro(90.0f, 30);
-        Rameno.Center();
-        delay(1000);
-        Rameno.Down();
-        delay(1000);
-        Rameno.Magnet(true);
-        delay(1000);
-        Rameno.Up();
-        delay(1000);
-        printf("Otočení zpět na směr 0.0...\n");
-        turn_gyro(0.0f, 40);
-        align_gyro(0.0f, 30);
-        rkLedYellow(false);
-
-        // 7. Vyložení 2. baterky vlevo (otočení ramene o 180° bez pohybu podvozku) -> Žlutá LED
-        printf("Vyložení 2. baterky vlevo (180° otočení ramene)...\n");
-        rkLedYellow(true);
-        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Side)
-        Rameno.Side(Rameno.iLeft); // 180 stupňů od iRight
-        delay(1000);
-        Rameno.DownUnload(); // Výška 95 stupňů
-        delay(1000);
-        Rameno.Magnet(false);
-        delay(500);
-        Rameno.Up();
-        delay(1000);
-        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Center)
-        Rameno.Center();
-        delay(1000);
-        rkLedYellow(false);
-
-        // ================== 3. BATERKA ==================
-        // 8. Popojet jenom 5 cm dopředu pro 3. baterku (113 cm -> 118 cm) -> Zelená LED
-        printf("Popojetí 5 cm dopředu k 3. baterce...\n");
-        rkLedGreen(true);
-        move_straight_gyro(50.0f, 40, 1000, 0.0f); // Sledujeme směr 0.0
-        rkLedGreen(false);
-
-        // 9. Uchopení 3. baterky otočením doleva -> Žlutá LED
-        printf("Otočení doleva a uchopení 3. baterky...\n");
-        rkLedYellow(true);
-        turn_gyro(90.0f, 40);
-        align_gyro(90.0f, 30);
-        Rameno.Center();
-        delay(1000);
-        Rameno.Down();
-        delay(1000);
-        Rameno.Magnet(true);
-        delay(1000);
-        Rameno.Up();
-        delay(1000);
-        printf("Otočení zpět na směr 0.0...\n");
-        turn_gyro(0.0f, 40);
-        align_gyro(0.0f, 30);
-        rkLedYellow(false);
-
-        // 10. Zacouvat zpět o 16 cm k vyložení (118 cm -> 102 cm) -> Červená LED
-        printf("Zacouvání 16 cm k vyložení 3. baterky...\n");
-        rkLedRed(true);
-        move_straight_gyro(-160.0f, 40, 2000, 0.0f); // Sledujeme směr 0.0
-        rkLedRed(false);
-
-        // 11. Vyložení 3. baterky na bok (vlevo) -> Žlutá LED
-        printf("Vyložení 3. baterky na bok (vlevo)...\n");
-        rkLedYellow(true);
-        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Side)
-        Rameno.Side(Rameno.iLeft);
-        delay(1000);
-        Rameno.DownUnload(); // Výška 95 stupňů
-        delay(1000);
-        Rameno.Magnet(false);
-        delay(500);
-        Rameno.Up();
-        delay(1000);
-        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Center)
-        Rameno.Center();
-        delay(1000);
-        rkLedYellow(false);
-
-        // ================== 4. BATERKA ==================
-        // 12. Popojet 24 cm dopředu pro 4. baterku (102 cm -> 126 cm) -> Zelená LED
-        printf("Popojetí 24 cm dopředu k 4. baterce...\n");
-        rkLedGreen(true);
-        move_straight_gyro(240.0f, 40, 3000, 0.0f); // Sledujeme směr 0.0
-        rkLedGreen(false);
-
-        // 13. Uchopení 4. baterky otočením doleva -> Žlutá LED
-        printf("Otočení doleva a uchopení 4. baterky...\n");
-        rkLedYellow(true);
-        turn_gyro(90.0f, 40);
-        align_gyro(90.0f, 30);
-        Rameno.Center();
-        delay(1000);
-        Rameno.Down();
-        delay(1000);
-        Rameno.Magnet(true);
-        delay(1000);
-        Rameno.Up();
-        delay(1000);
-        printf("Otočení zpět na směr 0.0...\n");
-        turn_gyro(0.0f, 40);
-        align_gyro(0.0f, 30);
-        rkLedYellow(false);
-
-        // 14. Zacouvat zpět o 75 cm k vyložení 4. baterky (126 cm -> 51 cm) -> Červená LED
-        printf("Zacouvání 75 cm zpět k vyložení...\n");
-        rkLedRed(true);
-        move_straight_gyro(-750.0f, 40, 5000, 0.0f); // Sledujeme směr 0.0
-        rkLedRed(false);
-
-        // 15. Vyložení 4. baterky na stejnou stranu jako 1. baterku (vlevo/doprava podle servo pozice iLeft) -> Žlutá LED
-        printf("Vyložení 4. baterky vlevo...\n");
-        rkLedYellow(true);
-        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Side)
-        Rameno.Side(Rameno.iLeft);
-        delay(1000);
-        Rameno.DownUnload(); // Výška 95 stupňů
-        delay(1000);
-        Rameno.Magnet(false);
-        delay(500);
-        Rameno.Up();
-        delay(1000);
-        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Center)
-        Rameno.Center();
-        delay(1000);
-        rkLedYellow(false);
-
-        // Indikace úspěšného konce
-        for (int i = 0; i < 5; i++) {
-            rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
-            delay(150);
-            rkLedAll(false);
-            delay(150);
+        // Najdi 4 naše docky a seřaď od nejvzdálenějšího
+        int my_docks[4];
+        int dock_count = 0;
+        for (int i = 0; i < 8 && dock_count < 4; i++) {
+            if (layout[i] == myColor) {
+                my_docks[dock_count++] = i;
+            }
         }
-        printf("=== KONEC SEKVENČNÍ JÍZDY ===\n");
+        // Seřazení: nejvzdálenější od startu jako první
+        for (int i = 0; i < dock_count - 1; i++) {
+            for (int j = i + 1; j < dock_count; j++) {
+                float di = std::abs(GameDimensions::DOCK_X_POSITIONS[my_docks[i]] - pos_x);
+                float dj = std::abs(GameDimensions::DOCK_X_POSITIONS[my_docks[j]] - pos_x);
+                if (dj > di) { int tmp = my_docks[i]; my_docks[i] = my_docks[j]; my_docks[j] = tmp; }
+            }
+        }
+
+        // === SLOUPCE BATERIÍ: každou z jiného sloupce, nejvzdálenější první ===
+        float bat_cols_sorted[4] = {
+            GameDimensions::BATTERY_COL1_X_MM, GameDimensions::BATTERY_COL2_X_MM,
+            GameDimensions::BATTERY_COL3_X_MM, GameDimensions::BATTERY_COL4_X_MM
+        };
+        // Seřazení: nejvzdálenější od startu první
+        for (int i = 0; i < 3; i++) {
+            for (int j = i + 1; j < 4; j++) {
+                float di = std::abs(bat_cols_sorted[i] - pos_x);
+                float dj = std::abs(bat_cols_sorted[j] - pos_x);
+                if (dj > di) { float tmp = bat_cols_sorted[i]; bat_cols_sorted[i] = bat_cols_sorted[j]; bat_cols_sorted[j] = tmp; }
+            }
+        }
+
+        printf("Pořadí docků: ");
+        for (int i = 0; i < dock_count; i++) printf("%d(%.0f) ", my_docks[i]+1, GameDimensions::DOCK_X_POSITIONS[my_docks[i]]);
+        printf("\nPořadí baterií: ");
+        for (int i = 0; i < 4; i++) printf("%.0f ", bat_cols_sorted[i]);
+        printf("\n");
+
+        // === HLAVNÍ SMYČKA: 4× seber baterku a vlož do docku ===
+        int delivered = 0;
+        for (int cycle = 0; cycle < 4 && cycle < dock_count; cycle++) {
+            printf("\n======== CYKLUS %d/4 ========\n", cycle + 1);
+            
+            // LED indikace cyklu
+            rkLedGreen(true);
+            
+            // 1. Dojeď k baterii
+            float bat_x = bat_cols_sorted[cycle];
+            printf("[%d] Jedu k baterii na X=%.0f...\n", cycle+1, bat_x);
+            dojed_k(pos_x, bat_x, isRed, race_speed);
+            delay(200);
+            
+            // 2. Chyť baterku
+            rkLedYellow(true);
+            chyt_baterku(isRed);
+            rkLedGreen(false);
+            delay(200);
+            
+            // 3. Dojeď k docku
+            float dock_x = GameDimensions::DOCK_X_POSITIONS[my_docks[cycle]];
+            printf("[%d] Jedu k docku %d na X=%.0f...\n", cycle+1, my_docks[cycle]+1, dock_x);
+            rkLedRed(true);
+            dojed_k(pos_x, dock_x, isRed, race_speed);
+            delay(200);
+            
+            // 4. Pusť baterku
+            pust_baterku(isRed);
+            delivered++;
+            rkLedAll(false);
+            
+            printf("[%d] Baterka %d doručena do docku %d! (%d/4)\n", 
+                   cycle+1, cycle+1, my_docks[cycle]+1, delivered);
+            delay(200);
+        }
+
+        // === NÁVRAT DOMŮ: Zacouvej ke zdi a naraz tlačítkama ===
+        printf("\n=== NÁVRAT DOMŮ ===\n");
+        rkLedRed(true); rkLedGreen(true);
+        
+        // Dorovnej směr
+        align_gyro(0.0f, 30);
+        
+        // Zacouvej ke zdi (jedeme POZADU = záporná vzdálenost pro forward)
+        // RED: zpět = +X směr = backward, BLUE: zpět = -X = backward
+        float home_x = isRed 
+            ? (GameDimensions::FIELD_WIDTH_MM - 50.0f)   // Pravá zeď
+            : 50.0f;                                       // Levá zeď
+        float back_distance = std::abs(pos_x - home_x) + 100.0f; // + 100mm pro jistotu nárazu
+        printf("[HOME] Couvám %.0f mm ke zdi...\n", back_distance);
+        move_straight_gyro(-back_distance, 25, 8000, 0.0f);  // Záporná = couvání
+        
+        // Stop
+        rkMotorsSetSpeed(0, 0);
+        delay(500);
+
+        // === KONEC: Pípnutí a blikání ===
+        printf("=== KONEC ZÁPASU === Doručeno: %d/4 baterií\n", delivered);
+        for (int i = 0; i < 8; i++) {
+            rkLedRed(i % 2 == 0); rkLedYellow(i % 2 == 1); rkLedGreen(i % 2 == 0);
+            delay(200);
+            rkLedAll(false);
+            delay(100);
+        }
     }
 
     // Tlačítko OFF: Samostatné vyrovnání robota na směr 0.0 stupňů (pro testy)

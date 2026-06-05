@@ -1,0 +1,301 @@
+                                                                                Robotický den 2026
+
+
+Roadside Assistance – Silniční asistence
+Roboti pomáhají jako silniční asistenční služba – doplňují
+baterie do elektromobilů, umisťují dopravní značky
+a pomáhají naložit rozsypaný náklad
+
+
+
+
+    1. Popis soutěže
+V každodenním životě lidí se roboti používají čím dál více. Také se čím dál více objevují samořiditelná auta.
+Ale kdo jim pomůže, když se něco pokazí? Možná roboti!
+V naší soutěži roboti slouží jako silniční asistenční služba. Do zápasu nastoupí na jednom hřišti dva roboti,
+aby ukázali, kdo je lepší. Roboti mají tři oblasti, kde mohou předvést své schopnosti:
+   1. Doplnit palivové články (nebo baterie) do aut;
+   2. Odstranit havarovaný náklaďák ze silnice a místo ohraničit přenosnými dopravními značkami;
+   3. Naložit náklad rozsypaný po havárii na náhradní vozidlo.
+V naší robotické soutěži budou tyto úkoly samozřejmě zjednodušené:
+   1. Baterie budou představovány kostkami, které bude potřeba převézt a vložit do modelu auta;
+   2. Model náklaďáku bude potřeba odstrčit ven ze hřiště a okolo cílové zóny rozestavět malé dopravní
+      značky;
+   3. Rozsypaný náklad, představovaný kostkami, bude potřeba přesunout do označené zóny na hřišti
+      a případně i naložit na přistavený model náhradního náklaďáku.
+
+
+    2. Robot
+Robot nesmí být nebezpečný nebo nadmíru obtěžující.
+Obvod robota (tj. obvod konvexní obálky jeho průmětu shora) nesmí být větší než 150 cm při startu a 200 cm
+kdykoli v průběhu hry (herní prvky, které robot veze, se do toho nezapočítávají). Robot se musí vejít do
+startovní oblasti. Maximální výška robota je 35 cm bez podstavce lokalizačního majáčku a případných
+senzorů umístěných pod ním. Herní prvky se nesmějí zvedat nad 35 cm, aby nebránily lokalizačním
+senzorům.
+Na horní straně robota musí být nouzový vypínač, jehož stisknutím se vypnou všechny pohony robota. Tento
+vypínač musí být dostatečně velký a vůči robotovi dostatečně výrazný, aby byl snadno rozpoznatelný. Musí
+také být snadno dosažitelný a intuitivně použitelný.
+Na horní straně robota musí být místo pro jeho označení (nálepka 10x7 cm).
+Na horní straně robota musí být umístěn podstavec pro lokalizační majáček: pevná podložka 8x8 cm
+ve výšce 43 cm pokrytá suchým zipem (strana s háčky). Pod touto plošinou mohou být umístěny případné
+senzory (pouze v nezbytně nutné míře a každopádně nesmějí tyto rozměry přesahovat). Podstavec
+pro majáček musí být umístěn co nejblíže středu robota.
+Roboti musejí být bezpeční. Proto se musejí vyhýbat kolizím s protihráčem. Roboti také nesmějí být
+nebezpeční lidem (musejí být dodržovány všechny platné bezpečnostní předpisy) a nesmějí poškozovat
+
+verze 2026/1                                       1/ 8                            http://www.roboticday.org
+     Roadside Assistance                                                            Robotický den 2026
+hřiště (škody budou posuzovány rozhodčími). Pokud robot nebude splňovat bezpečnostní požadavky, bude
+ze zápasu diskvalifikován. Další porušování bezpečnostních pravidel může vést k vyloučení týmu ze všech
+dalších zápasů.
+Kategorie Beginner: Robot je dálkově řízený. V případě použití ovládání po kabelu musí být tento kabel
+dostatečně dlouhý, aby umožňoval bezproblémové míjení se soupeřem a aby řidič robota kabelem „netahal“.
+V případě použití bezdrátového připojení se nepřijímají protesty týkající se tohoto spojení, jeho kvality a
+výpadků. Nejsou povoleny žádné technologie úmyslného rušení, i kdyby byly v souladu s platnými zákony a
+vyhláškami. Tato kategorie je určena pouze pro začátečníky; člen týmu, který se již zúčastnil, může být
+pouze v týmu v kategorii Advanced (netýká se pedagogického dozoru).
+Kategorie Advanced: Robot je autonomní (samostatný) a při závodě včetně startu není povoleno žádné
+jeho spojení s externími zařízeními vyjma lokalizačních majáčků. Od okamžiku, kdy soutěžící připraví robota
+a majáčky ke startu, se jej kromě odstartování nikdo nesmí dotýkat ani jakkoli zasahovat do jeho činnosti,
+a to až do té doby, kdy to rozhodčí opět povolí.
+
+
+       3. Lokalizační majáčky
+Na pomoc lokalizaci robota je možné kolem hřiště umístit lokalizační majáčky. Tým může umístit jeden
+majáček na podstavec uprostřed krátké strany hřiště, kde robot startuje, po jednom na dva podstavce v obou
+rozích protější strany a jeden na soupeřova robotova. Majáčky kolem hřiště je možné propojit drátem
+(samozřejmě kolem, nikoli přes hřiště). Podstavce pro majáčky jsou čtvercové, 8x8 cm a jsou pokryty
+suchým zipem (strana s háčky). Jsou ve výšce 35 cm a z pohledu shora jsou vně hřiště. Majáčky musejí být
+umístěny na podstavce tak, aby nepřesahovaly.
+Majáček umístěný na soupeřova robota musí být o rozměrech max. 8x8x8 cm. Všechny majáčky musejí být
+zkonstruovány tak, aby jejich hmotnost byla rozumná; majáček umisťovaný na soupeřova robota rozhodně
+musí být lehčí než 500 g. Na spodní straně majáčků musí být suchý zip (strana s očky), na horní straně
+pokud možno suchý zip (strana s háčky) pro umístění barevných rozlišovačů.
+
+
+       4. Hřiště
+Velikost herní plochy1) je 2x3 m. Základ plochy je bílý, na ploše jsou vyznačeny barevné plochy pro různé
+aktivity. Hřiště je ohraničeno mantinelem, jehož výška je cca 7 cm.
+Startovní zóny robotů jsou čtverce o straně 50 cm a jsou vyznačené u krátké strany poblíž předních rohů
+hřiště.
+Symbolizovaná silnice vede okolo střední části hřiště. Ve středu silnice je vyznačena přerušovaná čára.
+Přímo uprostřed hřiště jsou umístěny některé herní prvky (baterie a dopravní značky, viz dále).
+U přední dlouhé strany hřiště jsou zaparkovaná malá auta; do nich se budou doplňovat baterie.
+Uprostřed zadní dlouhé strany hřiště jsou zaparkovány dva náklaďáky pro naložení rozsypaného nákladu.
+V mantinelu zadní dlouhé strany jsou dvě mezery a dvě půlkruhové oblasti. To jsou cílové zóny pro odstrčení
+havarovaných náklaďáků (viz bodování v kap. 9).
+
+
+       5. Herní prvky
+Každý tým bude mít k dispozici následující herní prvky:
+  4 baterie k umístění do elektromobilů,
+  1 havarovaný náklaďák, který je třeba odstranit ze silnice,
+  16 kostek představujících náklad vysypaný z náklaďáku; ten je třeba umístit na náhradní vozidlo,
+  5 přenosných dopravních značek k označení oblasti s havarovaným vozidlem2).
+Baterie a dopravní značky budou umístěny uprostřed hřiště. Auta, do kterých se budou doplňovat baterie,
+budou náhodně umístěna podél přední dlouhé strany hřiště tak, že v bližší polovině hřiště bude jedno auto
+týmu a ve vzdálenější tři (toto bude losováno před zápasem) a auta obou týmů budou umístěna symetricky.
+
+
+
+1)
+  Rozměry herní plochy i herních prvků uvedené v těchto pravidlech jsou orientační. Podle výroby mohou
+být konkrétní rozměry mírně odlišné, ale samozřejmě se budeme snažit o rozumnou přesnost. Například,
+bude-li hřiště vyrobeno z více dílů, mohou být mezi nimi drobné výškové rozdíly. Proti takovýmto
+nepřesnostem není přípustné podávat protesty.
+2)
+     Na hřišti může být víc baterií i značek, než je minimálně potřeba, například jak je naznačeno v příloze.
+
+verze 2026/1                                           2/ 8                             http://www.roboticday.org
+ Roadside Assistance                                                          Robotický den 2026
+Havarovaný náklaďák bude ležet v rohu silnice, částečně na ní, částečně mimo. Náklad, který se
+z náklaďáku „vysypal“, bude náhodně rozhozen poblíž.
+Rozměry a tvar herních prvků je:
+  Baterie: kostka o hraně 6 cm s kovovým (ferromagnetickým) kroužkem o průměru cca 4 cm částečně
+     zapuštěným do horní strany kostky.
+  Náklad: kostka o hraně 6 cm.
+  Dopravní značka: válcová základna (průměr cca 7,5 cm, výška cca 2,5 cm), ke které je připevněna tyčka,
+     na jejímž vršku je trojúhelníková značka ne širší než základna.
+  Auta pro doplňování baterií: cca 12x22 cm. Místo pro umístění baterií je v zadní části (směrem do hřiště)
+     a je alespoň 8x8 cm velké. Je shora otevřené (hloubka není podstatná). Zadní strana auta bude
+     vysoká 6 cm.
+  Náhradní vozidlo pro naložení nákladu: náklaďák bude mít rovnou ložnou plochu 15x24 cm ve výšce
+     6 cm nad hřištěm.
+
+
+    6. Barvy
+Barvy jednotlivých částí jsou:
+   Herní plocha a mantinely jsou bílé.
+   Barva jednoho týmu je modrá, druhého červená. Havarovaný náklaďák, náhradní vozidlo, auta pro
+       doplňování baterií, startovní zóna robota a cílová zóna pro havarovaný náklaďák jsou v barvě týmu,
+       tj. modré pro jeden a červené pro druhý tým.
+   Baterie jsou fialové a na horní straně mají zapuštěný kroužek z holého kovu.
+   Dopravní značky mají černou základnu. Trojúhelníková plocha se značkou je z jedné strany žlutá, na dru-
+       hé je varovná dopravní značka (červené okraje, černý symbol na bílé ploše).
+   Náklad je zelený.
+   Silnice je černá, čára na ní bílá.
+Na herních prvcích mohou být i jiné barvy (např. text nebo grafika), převažující barva ale bude barva
+uvedená výše.
+Způsob obarvení prvků není podstatný. Mohou být vyrobeny z probarveného materiálu stejně jako natřené
+nebo polepené barevnou fólií – anebo libovolně jinak.
+Barvy jsou určeny slovně tak, jak je zde napsáno, a tedy nejsou definovány nějakým přesným průmyslovým
+kódem. Chtěli bychom také upozornit týmy, že na scénu mohou svítit reflektory nebo slunce a že fotografové
+mohou používat blesky.
+
+
+    7. Fáze soutěže
+Soutěž bude organizována v několika kolech, podle potřeby rozdělených do skupin. Finále se odehraje
+vyřazovacím způsobem.
+
+
+    8. Průběh zápasu
+Před startem bude týmu přidělena barva. Tato barva určuje některé herní prvky a akce s nimi (např. červený
+tým startuje z červené startovní plochy a získává body za umisťování baterií do červených aut atd.).
+Soutěžící umístí majáčky a připraví robota ke startu tak, aby byl plně ve své startovní zóně a připraven
+k odstartování. Na to mají čas nejdéle 256 sekund. Od této chvíle se nesmí zasahovat do činnosti robota,
+komunikovat s ním nebo mu předávat jakékoli informace. Po této přípravě umístí rozhodčí herní prvky na
+hřiště. Následně soutěžící na pokyn rozhodčího odstartují své roboty. Doba zápasu je maximálně 128
+sekund a robot musí zastavit a ukončit svou činnost před tímto limitem. Po skončení zápasu jsou spočteny
+body.
+Počet kol, pořadí a výběr pro jednotlivé zápasy závisí na počtu soutěžících týmů a může tedy být oznámen
+až v průběhu soutěže. Doporučujeme proto soutěžícím, aby připravili své roboty tak, aby mohli absolvovat
+dva zápasy hned za sebou (např. dostatečná kapacita baterie a doba přípravy mezi zápasy).
+Schovávání, držení, odstraňování, blokování nebo jakákoli další manipulace s herními prvky, která
+by negativně ovlivnila skóre soupeře, je striktně zakázána.
+
+
+
+
+verze 2026/1                                      3/ 8                           http://www.roboticday.org
+     Roadside Assistance                                                       Robotický den 2026
+
+       9. Bodování
+Akce budou ohodnoceny body následovně:
+   1. Baterie umístěná do auta: 5 bodů
+   2. Vystrčení havarovaného náklaďáku ven ze silnice do cílové zóny: 3 body
+   3. Umístění varovné dopravní značky: 2 body (max. 5 značek na tým)
+   4. Náklad umístěný v zóně kolem náhradního vozidla: 1 bod
+  5. Náklad naložený na náhradní vozidlo: 3 body
+Zvláštní bonusy:
+   1. Úplné splnění jedné z úloh3): 5 bodů za každou takovou úlohu
+   2. Skórování s alespoň jedním herním prvkem z každé skupiny: 10 bodů
+   3. Robot je na konci zápasu zaparkován zpět ve své startovní zóně: 5 bodů (robot musí při zápasu vyjet
+      ze své startovní zóny a získat aspoň jeden bod).
+Podmínky skórování:
+  1. Baterie je pokládána za správně umístěnou, pokud je uvnitř místa určeného pro baterii (pouze
+     1 baterie na 1 auto).
+  2. Havarovaný náklaďák je pokládán za správně odstraněný ze silnice, pokud je plně uvnitř barevné
+     půlkruhové cílové zóny u dlouhé strany hřiště; může být také vystrčen ven ze hřiště mezerou
+     v mantinelu na této zóně (částečně i zcela).
+  3. Dopravní značka je pokládána za správně umístěnou, pokud je umístěna na hranici mezi barevnou
+     cílovou zónou daného týmu a volným prostorem kolem této zóny (tj. musí být částečně na obou).
+  4. Náklad bude pokládán za správně umístěný poblíž náhradního vozidla, pokud je plně uvnitř barevné
+     zóny okolo tohoto vozidla.
+  5. Náklad bude pokládán za správně naložený, pokud leží na náhradním vozidle správné barvy a dotýká
+     se pouze náhradního vozidla nebo jiného nákladu. Kostky mohou být stohovány na sebe.
+Body se počítají po skončení zápasu. Všechny herní prvky se počítají týmu podle barvy oblasti, kam byl
+herní prvek umístěn. Například baterie vložená do červeného auta se počítá červenému týmu bez ohledu na
+to, který robot tam baterii umístil.
+Baterie a přenosné dopravní značky jsou stejné pro oba týmy a roboti mohou použít libovolnou. I když je
+vysypaný náklad představován také stejnými kostkami, roboti smějí manipulovat s nákladem vysypaným
+pouze na jejich vlastní polovině hřiště, ne na soupeřově polovině. Roboti také nesmějí manipulovat s více
+prvky, než je potřeba pro skórování.
+
+
+       10. Plakát a informační materiály
+Týmy přivezou plakát velikosti A1 až A0, který představí robota a tým. Tento plakát bude vyvěšený po celou
+dobu akce. Tým také dodá tento plakát a alespoň 2 fotografie či obrázky a text popisující robota/tým
+v elektronické formě pro publikační účely. Pokud je plakát namalován ručně (nebo jinak ne-počítačově), tým
+do aplikace nahraje jeho fotografii. Tyto materiály musejí být dodány prostřednictvím registrační aplikace
+ještě před příjezdem týmu na Robotický den (detailní informace jsou uvedeny v přihlašovacím formuláři).
+
+
+       11. Pravomoc rozhodčího a organizátorů, odpovědnost
+Pokud soutěžící či robot poruší pravidla, může rozhodčí jeho jízdu ukončit. Může také soutěžící či robota
+diskvalifikovat i pro další zápasy.
+Organizátoři mohou kdykoli změnit pravidla soutěže například podle počtu účastníků nebo místních
+podmínek.
+Účastníci ručí za své roboty a jejich bezpečnost a jsou zodpovědní za veškeré škody způsobené jimi
+samými, jejich roboty nebo jejich vybavením.
+Organizátoři neodpovídají za žádné újmy účastníků ani za škody, které způsobí účastníci, jejich roboti nebo
+jejich vybavení.
+
+
+
+
+3)
+   V souladu s kap. 1 jsou možné tyto tři úlohy: 1) naplnění všech vlastních aut bateriemi, 2) odstranění
+vlastního havarovaného náklaďáku ze silnice a označení místa nehody 5 značkami, 3) umístění všeho
+vlastního nákladu na náhradní vozidlo nebo do barevně označené zóně kolem něj.
+
+verze 2026/1                                      4/ 8                           http://www.roboticday.org
+ Roadside Assistance                                                      Robotický den 2026
+
+Příloha
+Následující obrázky slouží k základní orientaci. Ukazují některé možné situace (tj. ne vyčerpávajícím
+způsobem). Herní prvky jsou vyobrazeny pouze schematicky, ve skutečnosti mohou být více zdobné.
+
+
+
+
+Obr.1. Pohled zepředu
+
+
+
+
+Obr.2. Pohled zezadu
+
+
+
+
+Obr.3. Šikmý pohled zezadu
+
+verze 2026/1                                   5/ 8                          http://www.roboticday.org
+ Roadside Assistance                     Robotický den 2026
+
+
+
+
+Obr.4. Jiný pohled zepředu
+
+
+
+
+Obr.5. Schematický pohled shora
+
+
+
+
+verze 2026/1                      6/ 8     http://www.roboticday.org
+ Roadside Assistance                                                            Robotický den 2026
+
+
+
+
+Obr.6. Modrá startovní zóna
+
+
+
+
+Obr.7. Červené „místo nehody“ s červeným a modrým náhradním vozidlem poblíž a s dopravními značkami uprostřed
+hřiště
+
+
+
+verze 2026/1                                       7/ 8                            http://www.roboticday.org
+ Roadside Assistance                                                                 Robotický den 2026
+
+
+
+
+Obr.8. Červená cílová zóna vlevo, havarovaný náklaďák uprostřed, nahoře vysypaný náklad.
+
+
+
+
+Obr.9. Jiný pohled na červené místo nehody (červená startovní zóna vlevo nahoře a cílová zóna pro havarované vozidlo
+vpravo dole).
+
+
+verze 2026/1                                          8/ 8                              http://www.roboticday.org
+
