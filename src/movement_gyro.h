@@ -293,7 +293,25 @@ inline MoveResult move_straight_gyro(float mm, float speed, uint32_t timeout_ms 
         extern volatile bool opponentDetected;
         if (opponentDetected) {
             rkMotorsSetSpeed(0, 0);
+            
+            // Zjistíme detailně, které senzory a jaké hodnoty vyvolaly zastavení
+            uint32_t u1 = uz_predni();
+            uint32_t u2 = uz_predni_levy();
+            uint32_t u3 = uz_predni_pravy();
+            
             Serial.println("[move_straight_gyro] ZASTAVENO: Detekován soupeř!");
+            Serial.print("[ZASTAVENÍ DETAILED] Aktivní triggery: ");
+            if (u1 > 30 && u1 < 300) {
+                Serial.printf("U1 (predni): %u mm | ", u1);
+            }
+            if (u2 > 30 && u2 < 350) {
+                Serial.printf("U2 (predni levy): %u mm | ", u2);
+            }
+            if (u3 > 30 && u3 < 350) {
+                Serial.printf("U3 (predni pravy): %u mm | ", u3);
+            }
+            Serial.println();
+            
             // Vrátíme false a doposud ujetou vzdálenost
             float pos_l = std::abs(rkMotorsGetPositionLeft(true));
             float pos_r = std::abs(rkMotorsGetPositionRight(false));
@@ -371,9 +389,15 @@ inline MoveResult move_straight_gyro(float mm, float speed, uint32_t timeout_ms 
         float speed_r = current_speed - correction;
 
         // Diagnostika
+        // Diagnostika (včetně senzorů) každých 15 iterací (~150 ms)
         if (loop_counter % 15 == 0) {
-            Serial.printf("[GyroDrive] Pos: %.1f/%.1f mm | Rem: %.1f | Speed: %.1f%% | Head: %.2f° | Corr: %.2f\n", 
-                          real_pos, real_target_mm, dist_remaining, current_speed, heading, correction);
+            uint32_t u1 = uz_predni();
+            uint32_t u2 = uz_predni_levy();
+            uint32_t u3 = uz_predni_pravy();
+            uint32_t u4 = uz_zadek();
+            int laser = uz_laser();
+            Serial.printf("[GyroDrive] Pos: %.1f/%.1f mm | Rem: %.1f | Speed: %.1f%% | U1:%u U2:%u U3:%u U4:%u | Laser: %d mm | Head: %.2f°\n", 
+                          real_pos, real_target_mm, dist_remaining, current_speed, u1, u2, u3, u4, laser, heading);
         }
 
         rkMotorsSetSpeed(clamp_speed(speed_l * speed_sign), clamp_speed(speed_r * speed_sign));

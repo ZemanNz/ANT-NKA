@@ -3,6 +3,9 @@
 #include <Arduino.h>
 #include "Movement.h"
 
+// Deklarace funkce bzučáku z knihovny Robotka
+void rkBuzzerSet(bool on);
+
 // Globální proměnná označující detekci soupeře (true = soupeř detekován, false = volno)
 extern volatile bool opponentDetected;
 
@@ -10,8 +13,8 @@ extern volatile bool opponentDetected;
 inline void opponentTask(void *pvParameters) {
     int consecutive_detections = 0;
     
-    // Používáme periodu 200 ms pro detekci soupeře.
-    const TickType_t xDelay = pdMS_TO_TICKS(200);
+    // Používáme periodu 30 ms pro detekci soupeře (rychlejší odezva)
+    const TickType_t xDelay = pdMS_TO_TICKS(30);
     
     while (true) {
         // Změříme 3 přední senzory
@@ -22,12 +25,12 @@ inline void opponentTask(void *pvParameters) {
         bool detection_this_cycle = false;
         
         // Limity soupeře:
-        // U1 (přední): 30 cm (300 mm)
+        // U1 (přední): 35 cm (350 mm)
         // U2, U3 (levý, pravý): 35 cm (350 mm)
         // Zároveň hodnota musí být větší než 3 cm (30 mm), abychom odfiltrovali nuly a chyby.
         
         // 1) Kontrola předního senzoru (U1)
-        if (u1 > 30 && u1 < 300) {
+        if (u1 > 30 && u1 < 350) {
             detection_this_cycle = true;
         }
         // 2) Kontrola předního levého senzoru (U2)
@@ -41,12 +44,12 @@ inline void opponentTask(void *pvParameters) {
         
         if (detection_this_cycle) {
             consecutive_detections++;
-            if (consecutive_detections >= 3) {
+            if (consecutive_detections >= 2) {
                 if (!opponentDetected) {
                     opponentDetected = true;
                     Serial.printf("[OPPONENT] DETECTED! U1: %u mm, U2: %u mm, U3: %u mm\n", u1, u2, u3);
                 }
-                consecutive_detections = 3; // Omezení růstu
+                consecutive_detections = 2; // Omezení růstu
             }
         } else {
             consecutive_detections = 0;
@@ -55,6 +58,22 @@ inline void opponentTask(void *pvParameters) {
                 Serial.println("[OPPONENT] Clear.");
             }
         }
+        
+        // Jednorázové zapípání při detekci soupeře (pouze na náběžnou hranu)
+        static bool last_opponent_detected = false;
+        static uint32_t beep_stop_time = 0;
+        
+        if (opponentDetected && !last_opponent_detected) {
+            rkBuzzerSet(true);
+            beep_stop_time = millis() + 200; // Pípáme po dobu 200 ms
+        }
+        
+        if (beep_stop_time > 0 && millis() >= beep_stop_time) {
+            rkBuzzerSet(false);
+            beep_stop_time = 0;
+        }
+        
+        last_opponent_detected = opponentDetected;
         
         vTaskDelay(xDelay);
     }

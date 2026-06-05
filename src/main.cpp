@@ -150,26 +150,33 @@ void loop() {
     const int layout_idx = 0;         // <<< ZDE MŮŽETE ZMĚNIT KOMBINACI DOCKŮ (0 až 3)
     const float race_speed = 35.0f;   // Výchozí rychlost jízdy (%)
 
+    // Globální/static pozice robota v ose X (sdílená lambdami a testovacími tlačítky)
+    static float pos_x = isRed 
+        ? (GameDimensions::FIELD_WIDTH_MM - GameDimensions::STARTZONE_CENTER_MM - GameDimensions::ZADEK_OD_STREDU_MM) 
+        : GameDimensions::POCATECNI_X_STRED_MM;
+
     // ================================================================
     // POMOCNÉ SOUTĚŽNÍ LAMBDY (přístupné pro všechna tlačítka)
     // ================================================================
 
     /**
      * Dojeď tak, aby rameno bylo nad cílovou X pozicí.
-     * Automaticky počítá s offsetem ramena a směrem jízdy dle barvy týmu.
+     * Automaticky počítá s offsetem ramena a směrem jízdy dle barvy týmu (pokud use_offset=true).
      */
-    auto dojed_k = [isRed](float& current_x, float target_arm_x, float spd = 35.0f) -> bool {
-        float center_target;
-        if (isRed) {
-            // RED jede v -X: rameno je NAPRAVO od středu (vyšší X)
-            center_target = target_arm_x - GameDimensions::RAMENO_OD_STREDU_MM;
-        } else {
-            // BLUE jede v +X: rameno je NALEVO od středu (nižší X)
-            center_target = target_arm_x + GameDimensions::RAMENO_OD_STREDU_MM;
+    auto dojed_k = [isRed](float& current_x, float target_arm_x, float spd = 35.0f, bool use_offset = true) -> bool {
+        float center_target = target_arm_x;
+        if (use_offset) {
+            if (isRed) {
+                // RED jede v -X: rameno je NAPRAVO od středu (vyšší X)
+                center_target = target_arm_x - GameDimensions::RAMENO_OD_STREDU_MM;
+            } else {
+                // BLUE jede v +X: rameno je NALEVO od středu (nižší X)
+                center_target = target_arm_x + GameDimensions::RAMENO_OD_STREDU_MM;
+            }
         }
         float distance = isRed ? (current_x - center_target) : (center_target - current_x);
-        printf("[DOJED] Z X=%.0f -> cíl ramene X=%.0f (střed=%.0f), vzdálenost=%.0f mm\n",
-               current_x, target_arm_x, center_target, distance);
+        printf("[DOJED] Z X=%.0f -> cíl ramene X=%.0f (střed=%.0f, offset=%s), vzdálenost=%.0f mm\n",
+               current_x, target_arm_x, center_target, use_offset ? "ANO" : "NE", distance);
         
         uint32_t timeout = (uint32_t)(std::abs(distance) / 0.3f) + 3000; // dynamický timeout
         MoveResult res = move_straight_gyro(distance, spd, timeout, 0.0f);
@@ -185,13 +192,44 @@ void loop() {
      * Chyť baterku: otoč se k bateriím, seber ramenem, otoč zpět.
      * Končí s ramenem v pozici Up+Center (reset).
      */
-    auto chyt_baterku = [](bool isRed) {
-        float grab_angle = isRed ? 90.0f : -90.0f;
+    auto chyt_baterku = [](bool isRed, float original_bat_x, float& robot_x) {
+        float diff_x = original_bat_x - robot_x;
+        // Výpočet úhlu natočení robota, aby rameno na boku dosáhlo na požadovanou X pozici
+        float grab_angle = (isRed ? 90.0f : -90.0f) - (diff_x * 0.18f);
         float current_target_angle = grab_angle;
         int attempts = 0;
         
         while (true) {
-            printf("[GRAB] Pokus %d: Otáčím se na %.1f° k bateriím...\n", attempts + 1, current_target_angle);
+            // Po 5, 10, 15 atd. neúspěšných pokusech popojedeme a zkusíme to z jiného místa
+            if (attempts > 0 && attempts % 5 == 0) {
+                printf("[GRAB] Baterka stále nenalezena (pokus %d). Otáčím na 0° a popojedu...\n", attempts);
+                turn_gyro(0.0f, 40);
+                align_gyro(0.0f, 30);
+                
+                // Pokus 5:  Zacouváme o -30 mm
+                // Pokus 10: Popojedeme dopředu o +60 mm (+30 mm od startu)
+                // Pokus 15: Zacouváme o -60 mm
+                float shift = (attempts == 5) ? -30.0f : ((attempts == 10) ? 60.0f : -60.0f);
+                printf("[GRAB] Popojíždím o %.0f mm...\n", shift);
+                
+                MoveResult res = move_straight_gyro(shift, 20, 1500, 0.0f);
+                
+                // Aktualizace pozice robota podle ujeté vzdálenosti se znaménkem
+                if (isRed) {
+                    robot_x -= res.traveled_mm;
+                } else {
+                    robot_x += res.traveled_mm;
+                }
+                printf("[GRAB] Nová pozice X: %.1f mm. Pokračuji v hledání...\n", robot_x);
+                
+                // Přepočítáme úhel natočení robota podle nové pozice
+                float new_diff_x = original_bat_x - robot_x;
+                grab_angle = (isRed ? 90.0f : -90.0f) - (new_diff_x * 0.18f);
+                current_target_angle = grab_angle;
+            }
+
+            printf("[GRAB] Pokus %d: Otáčím se na %.1f° k bateriím (původní cíl X=%.0f)...\n", 
+                   attempts + 1, current_target_angle, original_bat_x);
             
             turn_gyro(current_target_angle, 40);
             align_gyro(current_target_angle, 30);
@@ -221,16 +259,11 @@ void loop() {
             
             // Pootočíme se o 5 stupňů v rozšiřujícím se vzoru (+5, -5, +10, -10 atd.)
             float offset = 0.0f;
-            if (attempts == 1) offset = 5.0f;
-            else if (attempts == 2) offset = -5.0f;
-            else if (attempts == 3) offset = 10.0f;
-            else if (attempts == 4) offset = -10.0f;
+            if (attempts % 5 == 1) offset = 5.0f;
+            else if (attempts % 5 == 2) offset = -5.0f;
+            else if (attempts % 5 == 3) offset = 10.0f;
+            else if (attempts % 5 == 4) offset = -10.0f;
             else {
-                offset = (attempts % 2 == 0) ? -(5.0f * (attempts/2 + 1)) : (5.0f * (attempts/2 + 1));
-            }
-            
-            // Bezpečnostní limit pootočení
-            if (std::abs(offset) > 20.0f) {
                 offset = 0.0f;
             }
             
@@ -279,8 +312,7 @@ void loop() {
     // 1) TLAČÍTKO ON: SOUTĚŽNÍ JÍZDA
     // ================================================================
     if (rkButtonOn(true)) {
-        // Počáteční pozice (RED = pravá strana, BLUE = levá)
-        float pos_x;
+        // Re-inicializace sdílené pozice pos_x pro novou jízdu
         if (isRed) {
             pos_x = GameDimensions::FIELD_WIDTH_MM - GameDimensions::STARTZONE_CENTER_MM 
                     - GameDimensions::ZADEK_OD_STREDU_MM; // 2670 mm
@@ -352,10 +384,17 @@ void loop() {
             // LED indikace cyklu
             rkLedGreen(true);
             
-            // 1. Dojeď k baterii
-            float bat_x = bat_cols_sorted[cycle];
-            printf("[%d] Jedu k baterii na X=%.0f...\n", cycle+1, bat_x);
-            if (!dojed_k(pos_x, bat_x, race_speed)) {
+            // 1. Dojeď k baterii (středy prostředních sloupců COL2 a COL3)
+            float original_bat_x = bat_cols_sorted[cycle];
+            float bat_x = original_bat_x;
+            if (bat_x == GameDimensions::BATTERY_COL1_X_MM) {
+                bat_x = GameDimensions::BATTERY_COL2_X_MM;
+            } else if (bat_x == GameDimensions::BATTERY_COL4_X_MM) {
+                bat_x = GameDimensions::BATTERY_COL3_X_MM;
+            }
+            
+            printf("[%d] Jedu k baterii na X=%.0f (původní cíl sloupce=%.0f)...\n", cycle+1, bat_x, original_bat_x);
+            if (!dojed_k(pos_x, bat_x, race_speed, false)) {
                 printf("[%d] Detekován soupeř při cestě k baterii! Blikám červeně a zkusím další...\n", cycle+1);
                 // Zablikat červenou LEDkou
                 for(int i=0; i<5; i++) {
@@ -368,7 +407,7 @@ void loop() {
             
             // 2. Chyť baterku
             rkLedYellow(true);
-            chyt_baterku(isRed);
+            chyt_baterku(isRed, original_bat_x, pos_x);
             rkLedGreen(false);
             delay(200);
             
@@ -471,14 +510,24 @@ void loop() {
     }
 
     // ================================================================
-    // 3) TLAČÍTKO DOWN: TEST OTOČENÍ
+    // 3) TLAČÍTKO DOWN: TEST JÍZDY S DETEKCÍ SOUPEŘE A PÍSKÁNÍM
     // ================================================================
     if (rkButtonDown(true)) {
-        printf("=== DOWN: TEST CHYCENÍ BATERKY (NEKONEČNÉ HLEDÁNÍ) ===\n");
+        printf("=== DOWN: TEST JÍZDY ROVNĚ S DETEKCÍ SOUPEŘE (800 mm) ===\n");
         rkLedYellow(true);
-        chyt_baterku(isRed);
+        
+        // Jízda dopředu o 800 mm se stabilizací k úhlu 0.0° a detekcí soupeře
+        MoveResult res = move_straight_gyro(800.0f, race_speed, 6000, 0.0f);
+        
+        if (!res.success) {
+            // Detekován soupeř a okamžitě zastaveno
+            printf("[DOWN] DETEKOVÁN SOUPEŘ! Okamžité zastavení.\n");
+        } else {
+            printf("[DOWN] Jízda dokončena úspěšně bez soupeře.\n");
+        }
+        
         rkLedYellow(false);
-        printf("=== TEST CHYCENÍ BATERKY DOKONČEN ===\n");
+        printf("=== TEST JÍZDY DOKONČEN ===\n");
     }
 
     // ================================================================
@@ -486,7 +535,7 @@ void loop() {
     // ================================================================
     if (rkButtonLeft(true)) {
         printf("=== LEFT: TEST CHYCENÍ BATERKY ===\n");
-        chyt_baterku(isRed);
+        chyt_baterku(isRed, pos_x, pos_x);
         printf("=== TEST CHYCENÍ DOKONČEN ===\n");
     }
 
