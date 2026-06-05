@@ -80,33 +80,44 @@ void setup() {
     cfg.wifi_password = "1234robot";
     
     
-    rkSetup(cfg);
-    printf("Robotka started!\n");
-
     Serial.begin(115200);
+    delay(10);
+    Serial.println("=== DIAGNOSTICKÝ START SETUPU ===");
+    uint32_t t_start = millis();
+
+    rkSetup(cfg);
+    Serial.printf("[SETUP] rkSetup trval: %lu ms\n", (unsigned long)(millis() - t_start));
+    
+    uint32_t t_gyro = millis();
     gyroInit();
-   
+    Serial.printf("[SETUP] gyroInit trval: %lu ms\n", (unsigned long)(millis() - t_gyro));
 
     //rkCheckBattery(); 
     
     rkLedAll(false); // Vypneme LED na startu, menu se o ně postará
 
-
     // Nastavení Chytrých serv
     // Zpřísněný limit pro soft move (150 centistupňů = 1.5°) pro spolehlivější detekci překážky/náběru
+    uint32_t t_servos_init = millis();
     rkSmartServoInit(0, 0, 240, 150, 3);
     rkSmartServoInit(1, 0, 240);
+    Serial.printf("[SETUP] rkSmartServoInit trval: %lu ms\n", (unsigned long)(millis() - t_servos_init));
 
-    // Zvednuti ramene a presun na stred
+    // Zvednuti ramene a presun na stred (wait_for_servo() už v sobě má dostatečné čekání a 500ms delay)
+    uint32_t t_arm_up = millis();
     Rameno.Up();
-    delay(2000); // Pockame, az vyjede nahoru
-    Rameno.Center();
-    delay(2000);
-
-    Rameno.fSetDefaultSmartServosSpeed(200);
-
+    Serial.printf("[SETUP] Rameno.Up() trval: %lu ms\n", (unsigned long)(millis() - t_arm_up));
     
-    //rkWaitForStart(); 
+    uint32_t t_arm_center = millis();
+    Rameno.Center();
+    Serial.printf("[SETUP] Rameno.Center() trval: %lu ms\n", (unsigned long)(millis() - t_arm_center));
+
+    Rameno.fSetDefaultSmartServosSpeed(60);
+
+    // Indikace dokončení inicializace a připravenosti robota (lze stisknout ON)
+    rkLedYellow(true);
+    Serial.printf("[SETUP] Celkový čas setupu: %lu ms\n", (unsigned long)(millis() - t_start));
+    Serial.println("=================================");
 }
 void loop() {
 
@@ -247,159 +258,204 @@ void loop() {
     }
     */
 
-    // Tlačítko ON: Kompletní jízda 118 cm dopředu, nabrání baterky vpravo, odvezení a položení vlevo
+    // Tlačítko ON: Kompletní soutěžní sekvence (3 baterky)
     if (rkButtonOn(true)) {
-        printf("=== START SEKVENČNÍ JÍZDY (VPRAVO -> VLEVO) ===\n");
+        printf("=== START SOUTĚŽNÍ SEKVENČNÍ JÍZDY ===\n");
         
         // Indikace LED a čekání 1 sekundu po stisku
         rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
         delay(1000);
         rkLedAll(false);
 
-        // 1. Jízda 118 cm dopředu -> Zelená LED
+        // Vynulování absolutního gyroskopu na začátku celé jízdy
+        gyroResetZ();
+        delay(50);
+
+        // ================== 1. BATERKA ==================
+        // 1. Jízda 118 cm dopředu k 1. baterce -> Zelená LED
+        printf("Jízda 118 cm k 1. baterce...\n");
         rkLedGreen(true);
-        move_acc_avoid(1180.0f, 40, []() { return false; }, 8000);
+        move_straight_gyro(1180.0f, 40, 8000, 0.0f); // Sledujeme směr 0.0
         rkLedGreen(false);
 
-        // 2. Ruka doprava -> Žlutá LED
+        // 2. Uchopení 1. baterky otočením doleva -> Žlutá LED
+        printf("Otočení doleva a uchopení 1. baterky...\n");
         rkLedYellow(true);
-        Rameno.Side(Rameno.iRight);
+        turn_gyro(90.0f, 40);
+        align_gyro(90.0f, 30);
+        Rameno.Center();
         delay(1000);
-
-        // 3. Ruka dolu
         Rameno.Down();
         delay(1000);
-
-        // 4. Magnet ON (uchopit baterku)
         Rameno.Magnet(true);
         delay(1000);
-
-        // 5. Ruka nahoru (výšková pozice po resetu)
         Rameno.Up();
         delay(1000);
-
-        // 6. Ruka na střed (125 stupňů)
-        Rameno.Center();
-        delay(1000);
+        printf("Otočení zpět na směr 0.0...\n");
+        turn_gyro(0.0f, 40);
+        align_gyro(0.0f, 30);
         rkLedYellow(false);
 
-        // 7. Popojet dopředu o 35 cm -> Zelená LED
+        // 3. Popojet dopředu o 35 cm k 1. vykládací zóně -> Zelená LED
+        printf("Popojetí 35 cm k vykládací zóně...\n");
         rkLedGreen(true);
-        move_acc_avoid(350.0f, 40, []() { return false; }, 4000);
+        move_straight_gyro(350.0f, 40, 4000, 0.0f); // Sledujeme směr 0.0
         rkLedGreen(false);
 
-        // 7b. Otočení podvozku o 90 stupňů doprava před vykládáním
-        TurnOnSpotRight_acc(90, 40);
-        delay(500);
-
-        // 8. Vyložení baterky před sebe (ruka zůstává na středu) -> Žlutá LED
+        // 4. Vyložení 1. baterky vlevo (bez otáčení robota, šetrnější výška 95°) -> Žlutá LED
+        printf("Vyložení 1. baterky vlevo...\n");
         rkLedYellow(true);
-        Rameno.DownUnload();
-        delay(1000);
-
-        // 9. Magnet OFF (pustit baterku)
-        Rameno.Magnet(false);
-        delay(500); // počkáme půl sekundy dle zadání
-
-        // 10. Ruka nahoru
-        Rameno.Up();
-        delay(1000);
-
-        // 11. Ruka na střed
-        Rameno.Center();
-        delay(1000);
-        rkLedYellow(false);
-
-        // 11b. Otočení podvozku o 90 stupňů zpět doleva po vyložení
-        TurnOnSpotLeft_acc(90, 40);
-        delay(500);
-
-        // 12. Popojet zpátky o 35 cm -> Červená LED
-        rkLedRed(true);
-        move_acc_avoid(-350.0f, 40, []() { return false; }, 4000);
-        rkLedRed(false);
-
-        // Indikace úspěšného konce
-        for (int i = 0; i < 5; i++) {
-            rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
-            delay(150);
-            rkLedAll(false);
-            delay(150);
-        }
-        printf("=== KONEC SEKVENČNÍ JÍZDY (VPRAVO -> VLEVO) ===\n");
-    }
-
-    // Tlačítko OFF: Kompletní jízda 118 cm dopředu, nabrání baterky vlevo, odvezení a položení vpravo
-    if (rkButtonOff(true)) {
-        printf("=== START SEKVENČNÍ JÍZDY (VLEVO -> VPRAVO) ===\n");
-        
-        // Indikace LED a čekání 1 sekundu po stisku
-        rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
-        delay(1000);
-        rkLedAll(false);
-
-        // 1. Jízda 118 cm dopředu -> Zelená LED
-        rkLedGreen(true);
-        move_acc_avoid(1180.0f, 40, []() { return false; }, 8000);
-        rkLedGreen(false);
-
-        // 2. Ruka doleva -> Žlutá LED
-        rkLedYellow(true);
+        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Side)
         Rameno.Side(Rameno.iLeft);
         delay(1000);
+        Rameno.DownUnload(); // Výška 95 stupňů
+        delay(1000);
+        Rameno.Magnet(false);
+        delay(500);
+        Rameno.Up();
+        delay(1000);
+        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Center)
+        Rameno.Center();
+        delay(1000);
+        rkLedYellow(false);
 
-        // 3. Ruka dolu
+        // ================== 2. BATERKA ==================
+        // 5. Zacouvat zpět o 40 cm (153 cm -> 113 cm, tj. 118 cm s přejetím o 5 cm) -> Červená LED
+        printf("Zacouvání 40 cm zpět na úroveň 113 cm (sběr s přejezdem o 5 cm)...\n");
+        rkLedRed(true);
+        move_straight_gyro(-400.0f, 40, 4000, 0.0f); // Sledujeme směr 0.0
+        rkLedRed(false);
+
+        // 6. Uchopení 2. baterky otočením doleva -> Žlutá LED
+        printf("Otočení doleva a uchopení 2. baterky...\n");
+        rkLedYellow(true);
+        turn_gyro(90.0f, 40);
+        align_gyro(90.0f, 30);
+        Rameno.Center();
+        delay(1000);
         Rameno.Down();
         delay(1000);
-
-        // 4. Magnet ON (uchopit baterku)
         Rameno.Magnet(true);
         delay(1000);
-
-        // 5. Ruka nahoru (výšková pozice po resetu)
         Rameno.Up();
         delay(1000);
+        printf("Otočení zpět na směr 0.0...\n");
+        turn_gyro(0.0f, 40);
+        align_gyro(0.0f, 30);
+        rkLedYellow(false);
 
-        // 6. Ruka na střed (125 stupňů)
+        // 7. Vyložení 2. baterky vlevo (otočení ramene o 180° bez pohybu podvozku) -> Žlutá LED
+        printf("Vyložení 2. baterky vlevo (180° otočení ramene)...\n");
+        rkLedYellow(true);
+        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Side)
+        Rameno.Side(Rameno.iLeft); // 180 stupňů od iRight
+        delay(1000);
+        Rameno.DownUnload(); // Výška 95 stupňů
+        delay(1000);
+        Rameno.Magnet(false);
+        delay(500);
+        Rameno.Up();
+        delay(1000);
+        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Center)
         Rameno.Center();
         delay(1000);
         rkLedYellow(false);
 
-        // 7. Popojet dopředu o 35 cm -> Zelená LED
+        // ================== 3. BATERKA ==================
+        // 8. Popojet jenom 5 cm dopředu pro 3. baterku (113 cm -> 118 cm) -> Zelená LED
+        printf("Popojetí 5 cm dopředu k 3. baterce...\n");
         rkLedGreen(true);
-        move_acc_avoid(350.0f, 40, []() { return false; }, 4000);
+        move_straight_gyro(50.0f, 40, 1000, 0.0f); // Sledujeme směr 0.0
         rkLedGreen(false);
 
-        // 7b. Otočení podvozku o 90 stupňů doprava před vykládáním
-        TurnOnSpotRight_acc(90, 40);
-        delay(500);
-
-        // 8. Vyložení baterky před sebe (ruka zůstává na středu) -> Žlutá LED
+        // 9. Uchopení 3. baterky otočením doleva -> Žlutá LED
+        printf("Otočení doleva a uchopení 3. baterky...\n");
         rkLedYellow(true);
-        Rameno.DownUnload();
+        turn_gyro(90.0f, 40);
+        align_gyro(90.0f, 30);
+        Rameno.Center();
         delay(1000);
-
-        // 9. Magnet OFF (pustit baterku)
-        Rameno.Magnet(false);
-        delay(500); // počkáme půl sekundy dle zadání
-
-        // 10. Ruka nahoru
+        Rameno.Down();
+        delay(1000);
+        Rameno.Magnet(true);
+        delay(1000);
         Rameno.Up();
         delay(1000);
+        printf("Otočení zpět na směr 0.0...\n");
+        turn_gyro(0.0f, 40);
+        align_gyro(0.0f, 30);
+        rkLedYellow(false);
 
-        // 11. Ruka na střed
+        // 10. Zacouvat zpět o 16 cm k vyložení (118 cm -> 102 cm) -> Červená LED
+        printf("Zacouvání 16 cm k vyložení 3. baterky...\n");
+        rkLedRed(true);
+        move_straight_gyro(-160.0f, 40, 2000, 0.0f); // Sledujeme směr 0.0
+        rkLedRed(false);
+
+        // 11. Vyložení 3. baterky na bok (vlevo) -> Žlutá LED
+        printf("Vyložení 3. baterky na bok (vlevo)...\n");
+        rkLedYellow(true);
+        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Side)
+        Rameno.Side(Rameno.iLeft);
+        delay(1000);
+        Rameno.DownUnload(); // Výška 95 stupňů
+        delay(1000);
+        Rameno.Magnet(false);
+        delay(500);
+        Rameno.Up();
+        delay(1000);
+        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Center)
         Rameno.Center();
         delay(1000);
         rkLedYellow(false);
 
-        // 11b. Otočení podvozku o 90 stupňů zpět doleva po vyložení
-        TurnOnSpotLeft_acc(90, 40);
-        delay(500);
+        // ================== 4. BATERKA ==================
+        // 12. Popojet 24 cm dopředu pro 4. baterku (102 cm -> 126 cm) -> Zelená LED
+        printf("Popojetí 24 cm dopředu k 4. baterce...\n");
+        rkLedGreen(true);
+        move_straight_gyro(240.0f, 40, 3000, 0.0f); // Sledujeme směr 0.0
+        rkLedGreen(false);
 
-        // 12. Popojet zpátky o 35 cm -> Červená LED
+        // 13. Uchopení 4. baterky otočením doleva -> Žlutá LED
+        printf("Otočení doleva a uchopení 4. baterky...\n");
+        rkLedYellow(true);
+        turn_gyro(90.0f, 40);
+        align_gyro(90.0f, 30);
+        Rameno.Center();
+        delay(1000);
+        Rameno.Down();
+        delay(1000);
+        Rameno.Magnet(true);
+        delay(1000);
+        Rameno.Up();
+        delay(1000);
+        printf("Otočení zpět na směr 0.0...\n");
+        turn_gyro(0.0f, 40);
+        align_gyro(0.0f, 30);
+        rkLedYellow(false);
+
+        // 14. Zacouvat zpět o 75 cm k vyložení 4. baterky (126 cm -> 51 cm) -> Červená LED
+        printf("Zacouvání 75 cm zpět k vyložení...\n");
         rkLedRed(true);
-        move_acc_avoid(-350.0f, 40, []() { return false; }, 4000);
+        move_straight_gyro(-750.0f, 40, 5000, 0.0f); // Sledujeme směr 0.0
         rkLedRed(false);
+
+        // 15. Vyložení 4. baterky na stejnou stranu jako 1. baterku (vlevo/doprava podle servo pozice iLeft) -> Žlutá LED
+        printf("Vyložení 4. baterky vlevo...\n");
+        rkLedYellow(true);
+        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Side)
+        Rameno.Side(Rameno.iLeft);
+        delay(1000);
+        Rameno.DownUnload(); // Výška 95 stupňů
+        delay(1000);
+        Rameno.Magnet(false);
+        delay(500);
+        Rameno.Up();
+        delay(1000);
+        align_gyro(0.0f, 30); // Dorovnání před pohybem servo 1 (Center)
+        Rameno.Center();
+        delay(1000);
+        rkLedYellow(false);
 
         // Indikace úspěšného konce
         for (int i = 0; i < 5; i++) {
@@ -408,7 +464,34 @@ void loop() {
             rkLedAll(false);
             delay(150);
         }
-        printf("=== KONEC SEKVENČNÍ JÍZDY (VLEVO -> VPRAVO) ===\n");
+        printf("=== KONEC SEKVENČNÍ JÍZDY ===\n");
+    }
+
+    // Tlačítko OFF: Samostatné vyrovnání robota na směr 0.0 stupňů (pro testy)
+    if (rkButtonOff(true)) {
+        printf("=== START TESTOVACÍHO OTOČENÍ O 90 STUPŇŮ (OFF) ===\n");
+        
+        // Indikace LED a čekání 1 sekundu po stisku
+        rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
+        delay(1000);
+        rkLedAll(false);
+
+        // Reset gyroskopu před začátkem otočení
+        gyroResetZ();
+        delay(50);
+
+        // Otočení o 90 stupňů vlevo a následné přesné dorovnání
+        turn_gyro(90.0f, 40);
+        align_gyro(90.0f, 30);
+
+        // Indikace úspěšného konce
+        for (int i = 0; i < 5; i++) {
+            rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
+            delay(150);
+            rkLedAll(false);
+            delay(150);
+        }
+        printf("=== KONEC OTOČENÍ ===\n");
     }
 // ======= TESTOVACÍ ČÁSTI ==========
 
@@ -450,55 +533,34 @@ void loop() {
         rkLedYellow(false);
     }
 
-    // Tlačítko DOWN: Kalibrace gyroskopu a vypisování dat
+    // Tlačítko DOWN: Reset úhlu gyroskopu a vypisování dat
     if (rkButtonIsPressed(BTN_DOWN)) {
-        printf("=== DOWN: Inicializace gyroskopu... ===\n");
+        printf("=== DOWN: Inicializace a reset gyroskopu... ===\n");
         gyroInit();
+        gyroResetZ();
         
-        printf("=============================================\n");
-        printf("=== START KALIBRACE GYROSKOPU (DOWN) ===\n");
-        printf("=== UDRŽUJTE ROBOTA V KLIDU! ===\n");
-        printf("=============================================\n");
-        
-        // Signalizace kalibrace žlutou LED
-        rkLedYellow(true);
-        gyroRequestCalibration();
-        delay(1500);
-        rkLedYellow(false);
-        
-        printf("=== Kalibrace dokončena! Vypisuji data z gyroskopu. ===\n");
+        printf("=== Gyro resetováno! Vypisuji data z gyroskopu. ===\n");
         printf("=== (Pro ukončení stiskněte libovolné jiné tlačítko) ===\n");
         
         while (!rkButtonIsPressed(BTN_UP) && !rkButtonIsPressed(BTN_LEFT) && !rkButtonIsPressed(BTN_RIGHT) && !rkButtonIsPressed(BTN_ON) && !rkButtonIsPressed(BTN_OFF)) {
-            auto &gs = getGyroState();
-            printf("MPU6050 -> Task Read OK: %s | Raw Gyro Z: %.6f rad/s | Offset: %.6f rad/s | Angle Z: %.2f deg | Acc Z: %.3f m/s^2\n", 
-                   gs.lastReadOk ? "YES" : "NO", gs.lastRawGyroZ, gs.rawOffsetZ, gyroGetAngleZ(), gs.lastRawAccZ);
-            rkLedRed(true);
-            delay(100);
-            rkLedRed(false);
+            printf("Gyro Angle Z: %.2f\n", gyroGetAngleZ());
             delay(100);
         }
         printf("=== Vypisování gyro dat ukončeno. ===\n");
     }
     
 
-    // TEST 10x 90 stupnu VLEVO
+    // Tlačítko LEFT: Otočení o 90 stupňů VLEVO (nízká rychlost)
     if (rkButtonLeft(true)) {
-        printf("Test 10x 90 stupnu VLEVO...\n");
-        for (int i = 0; i < 10; i++) {
-            TurnOnSpotLeft_acc(90, 40);
-            delay(300);
-        }
-        printf("Test VLEVO dokoncen!\n");
+        printf("Tlačítko LEFT: Otočení o 90 stupňů VLEVO...\n");
+        turn_gyro(90, 25);
+        printf("Otočení VLEVO dokončeno!\n");
     }
-    // TEST 10x 90 stupnu VPRAVO
+    // Tlačítko RIGHT: Otočení o 90 stupňů VPRAVO (nízká rychlost)
     if (rkButtonRight(true)) { 
-        printf("Test 10x 90 stupnu VPRAVO...\n");
-        for (int i = 0; i < 10; i++) {
-            TurnOnSpotRight_acc(90, 40);
-            delay(300);
-        }
-        printf("Test VPRAVO dokoncen!\n");
+        printf("Tlačítko RIGHT: Otočení o 90 stupňů VPRAVO...\n");
+        turn_gyro(-90, 25);
+        printf("Otočení VPRAVO dokončeno!\n");
     }
     
     // KALIBRACE UMBMARK - Ctverec Vpravo (Po smeru hodinovych rucicek)

@@ -247,6 +247,9 @@ bool Adafruit_I2CDevice::_read(uint8_t *buffer, size_t len, bool stop) {
 bool Adafruit_I2CDevice::write_then_read(const uint8_t *write_buffer,
                                          size_t write_len, uint8_t *read_buffer,
                                          size_t read_len, bool stop) {
+#ifdef ESP32
+  stop = true; // Vyhnutí se bugu s repeated start na ESP32 (způsobuje 150ms timeouty)
+#endif
   if (!write(write_buffer, write_len, stop)) {
     return false;
   }

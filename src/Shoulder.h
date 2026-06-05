@@ -22,25 +22,41 @@ public:
     // Ovládíní Grabberu Baterie
     void Magnet(bool on)                    { if (on) { rkServosSetPosition(1, 90); } else { rkServosSetPosition(1, 0); } }    // 90 - drží baterii, 0 - pustí baterii
     
+    // Pomocná metoda pro čekání na dojezd chytrého serva na požadovaný úhel
+    void wait_for_servo(int id, int target_angle, uint32_t timeout_ms = 2500) {
+        unsigned long start_time = millis();
+        while (millis() - start_time < timeout_ms) {
+            int current_pos = rkSmartServosPosicion(id);
+            if (current_pos > 0 && current_pos < 255) {
+                if (std::abs(current_pos - target_angle) <= 3) {
+                    break;
+                }
+            }
+            delay(20);
+        }
+        delay(500); // Pauza pro zklidnění baterie po dokončení pohybu
+    }
+
     // Rameno - nahoře
-    void Up(float rSpeed = -1)               { rkSmartServoMove(0, 65, rSpeed < 0 ? rDefaultSpeed : rSpeed); }        
+    void Up(float rSpeed = -1)               { rkSmartServoMove(0, 65, rSpeed < 0 ? rDefaultSpeed : rSpeed); wait_for_servo(0, 65); }        
 
     // Rameno - dole
-    void Down(float rSpeed = -1)             { rkSmartServoMove(0, 130, rSpeed < 0 ? rDefaultSpeed : rSpeed); }       
+    void Down(float rSpeed = -1)             { rkSmartServoMove(0, 130, rSpeed < 0 ? rDefaultSpeed : rSpeed); wait_for_servo(0, 130); }       
 
-    // Rameno - dole při vyložení
-    void DownUnload(float rSpeed = -1)       { rkSmartServoMove(0, 100, rSpeed < 0 ? rDefaultSpeed : rSpeed); }      
+    // Rameno - dole při vyložení (upraveno na 95 stupňů pro šetrnější položení)
+    void DownUnload(float rSpeed = -1)       { rkSmartServoMove(0, 95, rSpeed < 0 ? rDefaultSpeed : rSpeed); wait_for_servo(0, 95); }      
 
     // Rameno - nahoře - aktiv
-    void Active(float rSpeed = -1)           { rkSmartServoMove(0, 85, rSpeed < 0 ? rDefaultSpeed : rSpeed); }        
+    void Active(float rSpeed = -1)           { rkSmartServoMove(0, 85, rSpeed < 0 ? rDefaultSpeed : rSpeed); wait_for_servo(0, 85); }        
 
     // Rameno - pohyb do strany (využívá proměnné iLeft nebo iRight)
-    void Side(int iPos, float rSpeed = -1)   { rkSmartServoMove(1, iPos, rSpeed < 0 ? rDefaultSpeed : rSpeed); }        
+    void Side(int iPos, float rSpeed = -1)   { rkSmartServoMove(1, iPos, rSpeed < 0 ? rDefaultSpeed : rSpeed); wait_for_servo(1, iPos); }        
 
     // Když bereme baterii ze strany
     void SideTakeBattery(int iPos, float rSpeed = -1) { 
         int iOffset = (iPos < 125) ? 10 : -10; // Levá přičítá 10, pravá odčítá 10
         rkSmartServoMove(1, iPos + iOffset, rSpeed < 0 ? rDefaultSpeed : rSpeed); 
+        wait_for_servo(1, iPos + iOffset);
     } 
 
     // Pohyb ramenem lehce do strany aby se dorovnaly nepřesnosti
@@ -55,7 +71,7 @@ public:
     }
 
     // Rameno - Střed - kouká za robota
-    void Center(float rSpeed = -1)           { rkSmartServoMove(1, 125, rSpeed < 0 ? rDefaultSpeed : rSpeed); }  
+    void Center(float rSpeed = -1)           { rkSmartServoMove(1, 125, rSpeed < 0 ? rDefaultSpeed : rSpeed); wait_for_servo(1, 125); }  
 
 };
 
