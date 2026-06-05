@@ -120,158 +120,22 @@ void setup() {
     Serial.printf("[SETUP] Celkový čas setupu: %lu ms\n", (unsigned long)(millis() - t_start));
     Serial.println("=================================");
 }
+
 void loop() {
-
-
-
-    // switch (eCurrentState) {
-        
-    //     // ========================================================
-    //     // ROADSIDE MENU 1: Výběr Týmu (Barvy)
-    //     // ========================================================
-
-    /*
-    switch (eCurrentState) {
-        
-        // ========================================================
-        // ROADSIDE MENU 1: Výběr Týmu (Barvy)
-        // ========================================================
-
-        case MenuState::ROADSIDE_SELECT_TEAM:
-            // Signalizace podle vybraného týmu (kompenzace za nefunkční modrou LED)
-            rkLedAll(false);
-            if (eSelectedTeam == TeamColor::Blue) rkLedGreen(true); // Zelená jako náhrada za modrou
-            else if (eSelectedTeam == TeamColor::Red) rkLedRed(true);
-
-            if (rkButton1(true)) { eSelectedTeam = TeamColor::Blue; printf("Tym: MODRA\n"); }
-            if (rkButton2(true)) { eSelectedTeam = TeamColor::Red; printf("Tym: CERVENA\n"); }
-            
-            // Potvrzení MENU
-            if (rkButtonOn(true)) {
-                eCurrentState = MenuState::ROADSIDE_SELECT_LAYOUT;
-                printf("Presun do: ROADSIDE MENU 2 (Vyber rozlozeni)\n");
-            }
-            break;
-
-        // ========================================================
-        // ROADSIDE MENU 2: Výběr Rozložení Baterií
-        // ========================================================
-
-        case MenuState::ROADSIDE_SELECT_LAYOUT:
-            // Signalizace rozložení (0-3) pomocí barev (kompenzace za nefunkční modrou LED)
-            rkLedAll(false);
-            if (iSelectedLayout == 0) rkLedRed(true);
-            else if (iSelectedLayout == 1) rkLedYellow(true);
-            else if (iSelectedLayout == 2) rkLedGreen(true);
-            else if (iSelectedLayout == 3) { rkLedRed(true); rkLedGreen(true); } // Červená + Zelená místo modré
-
-            // -- Výběr hodnot
-            if (rkButton1(true)) { 
-                iSelectedLayout = (iSelectedLayout + 1) % 4; 
-                printf("Rozlozeni (NEXT): %d\n", iSelectedLayout); 
-            }
-            if (rkButton2(true)) { 
-                iSelectedLayout = (iSelectedLayout - 1 < 0) ? 3 : iSelectedLayout - 1; 
-                printf("Rozlozeni (BACK): %d\n", iSelectedLayout); 
-            }
-
-            // Potvrzení MENU
-            if (rkButtonOn(true)) {
-                eCurrentState = MenuState::ROADSIDE_WAIT_START;
-                printf("Presun do: ROADSIDE MENU 3 (Cekam na start)\n");
-            }
-            // Návrat do predchozího MENU
-            if (rkButtonOff(true)) {
-                eCurrentState = MenuState::ROADSIDE_SELECT_TEAM;
-                printf("Zpet na: Vyber tymu\n");
-            }
-            break;
-
-        // ========================================================
-        // ROADSIDE MENU 3: START (ON)
-        // ========================================================
-
-        case MenuState::ROADSIDE_WAIT_START:
-            // Blikání LED (kromě modré) na znamení připravenosti ke startu
-            {
-                bool val = (millis() % 500 < 250);
-                rkLedRed(val);
-                rkLedYellow(val);
-                rkLedGreen(val);
-            }
-
-            // Potvrzení MENU ---> Spuštění Roadside
-            if (rkButtonOn(true)) {
-                rkLedAll(false); // Vypnutí LED
-                RoadsideGame.fInitGame(iSelectedLayout, eSelectedTeam);
-                bRoadsideGameStarted = true;
-                eCurrentState = MenuState::GAME_RUNNING;
-                GameTimer.fStart(); // Spuštění časovače
-                printf("=== ROADSIDE ZAPAS ODSTARTOVAN! ===\n");
-            }
-            // Návrat do predchozího MENU
-            if (rkButtonOff(true)) {
-                eCurrentState = MenuState::ROADSIDE_SELECT_LAYOUT;
-                printf("Zpet na: Vyber rozlozeni\n");
-            }
-            break;
-
-        // ========================================================
-        // FÁZE 2: HLAVNÍ JÍZDNÍ SMYČKA (Po odstartování)
-        // ========================================================
-
-        case MenuState::GAME_RUNNING:
-            printf("=== START SOUTĚŽNÍ JÍZDY ===\n");
-            
-            // Úvodní blikání LED (červená, žlutá, zelená) - 5x
-            for (int i = 0; i < 5; i++) {
-                rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
-                delay(100);
-                rkLedAll(false);
-                delay(100);
-            }
-
-            // 1. FÁZE: Sebrání baterie (rychlost 40) -> Zelená LED
-            rkLedGreen(true);
-            RoadsideGame.fTakeClosestBattery(rCurrentRobotX, 40.0f);
-            rkLedGreen(false);
-
-            delay(1000);
-
-            // 2. FÁZE: Odevzdání baterie do docku (rychlost 40) -> Červená LED
-            rkLedRed(true);
-            RoadsideGame.fFillClosestDock(rCurrentRobotX, 40.0f);
-            rkLedRed(false);
-
-            // Vítězný světelný efekt (střídavé blikání LED)
-            for (int i = 0; i < 6; i++) {
-                rkLedGreen(true); delay(100); rkLedGreen(false);
-                rkLedYellow(true); delay(100); rkLedYellow(false);
-                rkLedRed(true); delay(100); rkLedRed(false);
-            }
-            rkLedAll(false);
-            printf("=== KONEC SOUTĚŽNÍ JÍZDY ===\n");
-
-            // Návrat na začátek menu po dojetí
-            eCurrentState = MenuState::ROADSIDE_SELECT_TEAM;
-            bRoadsideGameStarted = false;
-            break;
-    }
-    */
+    // === VÝCHOZÍ NASTAVENÍ PRO ZÁPAS / TESTY ===
+    const bool isRed = true;          // <<< ZDE MŮŽETE ZMĚNIT BARVU TÝMU (true = RED, false = BLUE)
+    const int layout_idx = 0;         // <<< ZDE MŮŽETE ZMĚNIT KOMBINACI DOCKŮ (0 až 3)
+    const float race_speed = 35.0f;   // Výchozí rychlost jízdy (%)
 
     // ================================================================
-    // SOUTĚŽNÍ FUNKCE
+    // POMOCNÉ SOUTĚŽNÍ LAMBDY (přístupné pro všechna tlačítka)
     // ================================================================
-
-    // Aktuální pozice středu robota na hřišti (osa X, od levé zdi)
-    // RED startuje vpravo (X≈2670), BLUE vlevo (X≈330)
-    // "Dopředu" pro RED = směr -X, pro BLUE = směr +X
 
     /**
      * Dojeď tak, aby rameno bylo nad cílovou X pozicí.
      * Automaticky počítá s offsetem ramena a směrem jízdy dle barvy týmu.
      */
-    auto dojed_k = [](float& current_x, float target_arm_x, bool isRed, float spd = 35.0f) {
+    auto dojed_k = [isRed](float& current_x, float target_arm_x, float spd = 35.0f) {
         float center_target;
         if (isRed) {
             // RED jede v -X: rameno je NAPRAVO od středu (vyšší X)
@@ -298,7 +162,7 @@ void loop() {
      * Končí s ramenem v pozici Up+Center (reset).
      */
     auto chyt_baterku = [](bool isRed) {
-        float grab_angle = isRed ? -90.0f : 90.0f;
+        float grab_angle = isRed ? 90.0f : -90.0f;
         printf("[GRAB] Otáčím se o %.0f° k bateriím...\n", grab_angle);
         
         turn_gyro(grab_angle, 40);
@@ -324,11 +188,10 @@ void loop() {
 
     /**
      * Pusť baterku do docku: rameno na bok, dolů, pusť, zpět.
-     * Končí s ramenem v pozici Up+Center (reset) a magnetem zapnutým (pro další baterku).
+     * Končí s ramenem v pozici Up+Center (reset) a magnetem zapunutým (pro další baterku).
      */
     auto pust_baterku = [](bool isRed) {
         // RED: dock je vlevo od robota (iLeft), BLUE: dock je vpravo (iRight)
-        // ...ale záleží na fyzickém uspořádání. Používáme logiku z Roadside.h:
         int drop_side = isRed ? Rameno.iLeft : Rameno.iRight;
         printf("[DROP] Vykládám baterku na stranu %d...\n", drop_side);
         
@@ -353,14 +216,9 @@ void loop() {
     };
 
     // ================================================================
-    // TLAČÍTKO ON: SOUTĚŽNÍ JÍZDA
+    // 1) TLAČÍTKO ON: SOUTĚŽNÍ JÍZDA
     // ================================================================
     if (rkButtonOn(true)) {
-        // === NASTAVENÍ ZÁPASU ===
-        bool isRed = true;                // <<< ZDE ZMĚNIT BARVU TÝMU
-        int layout_idx = 0;              // <<< ZDE ZMĚNIT KOMBINACI (0-3)
-        float race_speed = 35.0f;        // Rychlost jízdy (%)
-        
         // Počáteční pozice (RED = pravá strana, BLUE = levá)
         float pos_x;
         if (isRed) {
@@ -370,11 +228,11 @@ void loop() {
             pos_x = GameDimensions::POCATECNI_X_STRED_MM; // 330 mm
         }
 
-        printf("=== SOUTĚŽNÍ JÍZDA ===\n");
+        printf("=== START SOUTĚŽNÍ JÍZDY ===\n");
         printf("Tým: %s | Kombinace: %d | Start X: %.0f mm\n", 
                isRed ? "ČERVENÝ" : "MODRÝ", layout_idx, pos_x);
 
-        // Indikace + čekání
+        // Indikace + čekání 1 sekundu
         rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
         delay(1000);
         rkLedAll(false);
@@ -435,7 +293,7 @@ void loop() {
             // 1. Dojeď k baterii
             float bat_x = bat_cols_sorted[cycle];
             printf("[%d] Jedu k baterii na X=%.0f...\n", cycle+1, bat_x);
-            dojed_k(pos_x, bat_x, isRed, race_speed);
+            dojed_k(pos_x, bat_x, race_speed);
             delay(200);
             
             // 2. Chyť baterku
@@ -448,7 +306,7 @@ void loop() {
             float dock_x = GameDimensions::DOCK_X_POSITIONS[my_docks[cycle]];
             printf("[%d] Jedu k docku %d na X=%.0f...\n", cycle+1, my_docks[cycle]+1, dock_x);
             rkLedRed(true);
-            dojed_k(pos_x, dock_x, isRed, race_speed);
+            dojed_k(pos_x, dock_x, race_speed);
             delay(200);
             
             // 4. Pusť baterku
@@ -468,20 +326,19 @@ void loop() {
         // Dorovnej směr
         align_gyro(0.0f, 30);
         
-        // Zacouvej ke zdi (jedeme POZADU = záporná vzdálenost pro forward)
-        // RED: zpět = +X směr = backward, BLUE: zpět = -X = backward
+        // Zacouvej ke zdi
         float home_x = isRed 
             ? (GameDimensions::FIELD_WIDTH_MM - 50.0f)   // Pravá zeď
             : 50.0f;                                       // Levá zeď
         float back_distance = std::abs(pos_x - home_x) + 100.0f; // + 100mm pro jistotu nárazu
         printf("[HOME] Couvám %.0f mm ke zdi...\n", back_distance);
-        move_straight_gyro(-back_distance, 25, 8000, 0.0f);  // Záporná = couvání
+        move_straight_gyro(-back_distance, 25, 8000, 0.0f);
         
         // Stop
         rkMotorsSetSpeed(0, 0);
         delay(500);
 
-        // === KONEC: Pípnutí a blikání ===
+        // === KONEC ZÁPASU: Zvukový signál a blikání ===
         printf("=== KONEC ZÁPASU === Doručeno: %d/4 baterií\n", delivered);
         for (int i = 0; i < 8; i++) {
             rkLedRed(i % 2 == 0); rkLedYellow(i % 2 == 1); rkLedGreen(i % 2 == 0);
@@ -491,131 +348,76 @@ void loop() {
         }
     }
 
-    // Tlačítko OFF: Samostatné vyrovnání robota na směr 0.0 stupňů (pro testy)
-    if (rkButtonOff(true)) {
-        printf("=== START TESTOVACÍHO OTOČENÍ O 90 STUPŇŮ (OFF) ===\n");
+    // ================================================================
+    // 2) TLAČÍTKO UP: TEST JÍZDY ROVNĚ A ZPĚT
+    // ================================================================
+    if (rkButtonUp(true)) {
+        printf("=== UP: TEST JÍZDY ROVNĚ (500 mm tam a zpět) ===\n");
+        rkLedGreen(true);
         
-        // Indikace LED a čekání 1 sekundu po stisku
-        rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
+        // Jízda dopředu o 500 mm se stabilizací k úhlu 0.0°
+        move_straight_gyro(500.0f, race_speed, 4000, 0.0f);
         delay(1000);
-        rkLedAll(false);
-
-        // Reset gyroskopu před začátkem otočení
-        gyroResetZ();
-        delay(50);
-
-        // Otočení o 90 stupňů vlevo a následné přesné dorovnání
-        turn_gyro(90.0f, 40);
-        align_gyro(90.0f, 30);
-
-        // Indikace úspěšného konce
-        for (int i = 0; i < 5; i++) {
-            rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
-            delay(150);
-            rkLedAll(false);
-            delay(150);
-        }
-        printf("=== KONEC OTOČENÍ ===\n");
+        
+        // Jízda dozadu (zpět) o 500 mm
+        move_straight_gyro(-500.0f, race_speed, 4000, 0.0f);
+        
+        rkLedGreen(false);
+        printf("=== TEST JÍZDY DOKONČEN ===\n");
     }
-// ======= TESTOVACÍ ČÁSTI ==========
 
-    
-    // if (rkButtonIsPressed(BTN_LEFT) && rkButtonIsPressed(BTN_RIGHT))    {  }
-    // if (rkButtonIsPressed(BTN_UP) && rkButtonIsPressed(BTN_DOWN))       {  }
-    // if (rkButtonIsPressed(BTN_ON))      { }
-    // if (rkButtonIsPressed(BTN_OFF))     { 
-        
-    //     // SCÉNÁŘ PRO MANIPULÁTOR 1 (ID 0)
-        
-    //          // 1. Otevři chapadlo
-    //     delay(1500);
-        
-    //           // 2. Dojeď pro předmět před sebe                       | Cíl: X=180, Y=50, Základna = 0° (vpřed)
-    //     delay(10000);
-        
-    //          // 3. Zavři chapadlo (chytni předmět)
-    //     delay(1500);    
-        
-    //         // 4. Zvedni ho do výšky a otoč se s ním doprava        | Cíl: X=180, Y=50, Základna = -90° (vpravo)
-    //     delay(10000);
-        
-    //           // 5. Otevři chapadlo (pusť předmět)
-    //     delay(1500);
-
-    //     printf("\n");
-        
-    // }
-
-    // Tlačítko UP: Rameno doprava (iRight) a dolů (nabírání baterky vpravo)
-    if (rkButtonIsPressed(BTN_UP)) {
-        printf("=== UP: DOPRAVA A DOLŮ ===\n");
+    // ================================================================
+    // 3) TLAČÍTKO DOWN: TEST OTOČENÍ
+    // ================================================================
+    if (rkButtonDown(true)) {
+        printf("=== DOWN: TEST OTOČENÍ (90 stupňů a zpět) ===\n");
         rkLedYellow(true);
-        Rameno.Side(Rameno.iRight);
-        delay(1000);
-        Rameno.Down();
-        delay(1000);
+        
+        // Otočení o 90 stupňů doleva a přesné dorovnání
+        turn_gyro(90.0f, 30);
+        align_gyro(90.0f, 25);
+        delay(1500);
+        
+        // Otočení zpět na 0 stupňů a dorovnání
+        turn_gyro(0.0f, 30);
+        align_gyro(0.0f, 25);
+        
         rkLedYellow(false);
+        printf("=== TEST OTOČENÍ DOKONČEN ===\n");
     }
 
-    // Tlačítko DOWN: Reset úhlu gyroskopu a vypisování dat
-    if (rkButtonIsPressed(BTN_DOWN)) {
-        printf("=== DOWN: Inicializace a reset gyroskopu... ===\n");
+    // ================================================================
+    // 4) TLAČÍTKO LEFT: TEST MANIPULACE - CHYCENÍ BATERKY
+    // ================================================================
+    if (rkButtonLeft(true)) {
+        printf("=== LEFT: TEST CHYCENÍ BATERKY ===\n");
+        chyt_baterku(isRed);
+        printf("=== TEST CHYCENÍ DOKONČEN ===\n");
+    }
+
+    // ================================================================
+    // 5) TLAČÍTKO RIGHT: TEST MANIPULACE - VYLOŽENÍ BATERKY
+    // ================================================================
+    if (rkButtonRight(true)) {
+        printf("=== RIGHT: TEST VYLOŽENÍ BATERKY ===\n");
+        pust_baterku(isRed);
+        printf("=== TEST VYLOŽENÍ DOKONČEN ===\n");
+    }
+
+    // ================================================================
+    // 6) TLAČÍTKO OFF: KALIBRACE / INICIALIZACE GYROSKOPU
+    // ================================================================
+    if (rkButtonOff(true)) {
+        printf("=== OFF: INICIALIZACE A RESET GYROSKOPU ===\n");
+        rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
+        
         gyroInit();
         gyroResetZ();
         
-        printf("=== Gyro resetováno! Vypisuji data z gyroskopu. ===\n");
-        printf("=== (Pro ukončení stiskněte libovolné jiné tlačítko) ===\n");
-        
-        while (!rkButtonIsPressed(BTN_UP) && !rkButtonIsPressed(BTN_LEFT) && !rkButtonIsPressed(BTN_RIGHT) && !rkButtonIsPressed(BTN_ON) && !rkButtonIsPressed(BTN_OFF)) {
-            printf("Gyro Angle Z: %.2f\n", gyroGetAngleZ());
-            delay(100);
-        }
-        printf("=== Vypisování gyro dat ukončeno. ===\n");
+        delay(500);
+        rkLedAll(false);
+        printf("=== GYROSKOP ZKALIBROVÁN A RESETOVÁN ===\n");
     }
-    
-
-    // Tlačítko LEFT: Otočení o 90 stupňů VLEVO (nízká rychlost)
-    if (rkButtonLeft(true)) {
-        printf("Tlačítko LEFT: Otočení o 90 stupňů VLEVO...\n");
-        turn_gyro(90, 25);
-        printf("Otočení VLEVO dokončeno!\n");
-    }
-    // Tlačítko RIGHT: Otočení o 90 stupňů VPRAVO (nízká rychlost)
-    if (rkButtonRight(true)) { 
-        printf("Tlačítko RIGHT: Otočení o 90 stupňů VPRAVO...\n");
-        turn_gyro(-90, 25);
-        printf("Otočení VPRAVO dokončeno!\n");
-    }
-    
-    // KALIBRACE UMBMARK - Ctverec Vpravo (Po smeru hodinovych rucicek)
-    // if (rkButton1(true)) { 
-    //     printf("Startuji kalibracni ctverec VPRAVO (1x)...\n");
-    //     for (int i = 0; i < 1; i++) {
-    //         for (int j = 0; j < 4; j++) {
-    //             move_acc_avoid(1000.0f, 40, []() { return false; }, 8000);
-    //             delay(300);
-    //             TurnOnSpotRight_acc(90, 40);
-    //             delay(300);
-    //         }
-    //     }
-    //     printf("Kalibrace VPRAVO dokoncena!\n");
-    // }
-    
-    // KALIBRACE UMBMARK - Ctverec Vlevo (Proti smeru hodinovych rucicek)
-    // if (rkButton2(true)) { 
-    //     printf("Startuji kalibracni ctverec VLEVO (1x)...\n");
-    //     for (int i = 0; i < 1; i++) {
-    //         for (int j = 0; j < 4; j++) {
-    //             move_acc_avoid(1000.0f, 40, []() { return false; }, 8000);
-    //             delay(300);
-    //             TurnOnSpotLeft_acc(90, 40);
-    //             delay(300);
-    //         }
-    //     }
-    //     printf("Kalibrace VLEVO dokoncena!\n");
-    // }
-
-
 
     delay(10);
 }

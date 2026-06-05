@@ -87,7 +87,7 @@ def plan_race(layout, is_red):
         steps.append(("WAIT", 0.2))
 
         # 2. Otoč se k bateriím
-        grab_angle = -90.0 if is_red else 90.0
+        grab_angle = 90.0 if is_red else -90.0
         steps.append(("TURN", grab_angle))
         steps.append(("WAIT", 0.15))
 
@@ -301,8 +301,10 @@ def draw_robot(s, robot):
     arm_len = int(320 * SCALE)
     if robot.arm == "grab_down":
         # Rameno natažené směrem k bateriím (nahoru na obrazovce = +Y na hřišti)
-        # Směr závisí na angle: po otočení -90° (RED) rameno směřuje nahoru
-        rad = math.radians(robot.angle + 90)
+        if robot.is_red:
+            rad = math.radians(robot.angle)
+        else:
+            rad = math.radians(180 + robot.angle)
         ex = px + math.cos(rad) * arm_len
         ey = py - math.sin(rad) * arm_len
         pygame.draw.line(s, ORANGE, (px, py), (int(ex), int(ey)), 4)
