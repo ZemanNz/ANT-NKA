@@ -73,6 +73,30 @@ public:
     // Rameno - Střed - kouká za robota
     void Center(float rSpeed = -1)           { rkSmartServoMove(1, 125, rSpeed < 0 ? rDefaultSpeed : rSpeed); wait_for_servo(1, 125); }  
 
+    /**
+     * \brief Detekuje, zda rameno drží baterii (pomocí laserového ToF senzoru).
+     *        Měří vícekrát (cílí na 3 platná měření) a průměruje je.
+     *        Hodnoty <= 20 mm (včetně 0 a -1) jsou ignorovány jako chyby.
+     * \return true pokud je průměrná vzdálenost menší než 80 mm.
+     */
+    bool HasBattery() {
+        extern int uz_laser();
+        int valid_count = 0;
+        
+        // Provedeme 5 rychlých měření
+        for (int i = 0; i < 5; i++) {
+            int dist = uz_laser();
+            // Validní vzdálenost baterie na magnetu je v rozsahu 20 až 150 mm
+            if (dist > 20 && dist < 150) {
+                valid_count++;
+            }
+            delay(15); // Krátká pauza mezi měřeními
+        }
+        
+        // Pokud alespoň 2 měření detekují překážku v tomto rozsahu, baterii máme
+        return (valid_count >= 2);
+    }
+
 };
 
 // Deklarace globální instance pro zbytek programu

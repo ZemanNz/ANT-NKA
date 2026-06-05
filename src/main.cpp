@@ -9,6 +9,9 @@
 #include "movement_gyro.h"
 #include "ContestTimer.h"
 #include "Shoulder.h"
+#include <Wire.h>
+#include <Adafruit_VL53L0X.h>
+#include "OpponentDetection.h"
 
 
 // Nastavení Roadsidu
@@ -19,6 +22,12 @@ ContestTimer GameTimer;
 
 // Globální instance Ramene (propojí se přes extern všude tam, kde je Shoulder.h) 
 Shoulder Rameno;
+
+// Globální proměnná pro detekci soupeře (task na pozadí ji nastavuje)
+volatile bool opponentDetected = false;
+
+// Instance laserového ToF senzoru VL53L0X
+Adafruit_VL53L0X loxLaser = Adafruit_VL53L0X();
 
 // --- Proměnné pro MENU ---
 enum class MenuState {
@@ -93,6 +102,20 @@ void setup() {
     gyroInit();
     Serial.printf("[SETUP] gyroInit trval: %lu ms\n", (unsigned long)(millis() - t_gyro));
 
+    uint32_t t_laser = millis();
+    Serial.println("[SETUP] Initializing Wire1 on pins 21 (SDA), 22 (SCL) for laser...");
+    pinMode(21, PULLUP);
+    pinMode(22, PULLUP);
+    Wire1.begin(21, 22, 400000);
+    Wire1.setTimeOut(1);
+    
+    // Inicializace laseru
+    rk_laser_init("laser", Wire1, loxLaser, 23, 0x30);
+    Serial.printf("[SETUP] Laser init trval: %lu ms\n", (unsigned long)(millis() - t_laser));
+
+    // Inicializace asynchronní detekce soupeře
+    opponentDetectionInit();
+
     //rkCheckBattery(); 
     
     rkLedAll(false); // Vypneme LED na startu, menu se o ně postará
@@ -135,7 +158,7 @@ void loop() {
      * Dojeď tak, aby rameno bylo nad cílovou X pozicí.
      * Automaticky počítá s offsetem ramena a směrem jízdy dle barvy týmu.
      */
-    auto dojed_k = [isRed](float& current_x, float target_arm_x, float spd = 35.0f) {
+    auto dojed_k = [isRed](float& current_x, float target_arm_x, float spd = 35.0f) -> bool {
         float center_target;
         if (isRed) {
             // RED jede v -X: rameno je NAPRAVO od středu (vyšší X)
@@ -155,6 +178,7 @@ void loop() {
         if (isRed) { current_x -= res.traveled_mm; }
         else       { current_x += res.traveled_mm; }
         printf("[DOJED] Nová pozice středu: X=%.0f mm\n", current_x);
+        return res.success;
     };
 
     /**
@@ -163,19 +187,55 @@ void loop() {
      */
     auto chyt_baterku = [](bool isRed) {
         float grab_angle = isRed ? 90.0f : -90.0f;
-        printf("[GRAB] Otáčím se o %.0f° k bateriím...\n", grab_angle);
+        float current_target_angle = grab_angle;
+        int attempts = 0;
         
-        turn_gyro(grab_angle, 40);
-        align_gyro(grab_angle, 30);
-        
-        Rameno.Center();
-        delay(800);
-        Rameno.Down();
-        delay(800);
-        Rameno.Magnet(true);
-        delay(600);
-        Rameno.Up();
-        delay(800);
+        while (true) {
+            printf("[GRAB] Pokus %d: Otáčím se na %.1f° k bateriím...\n", attempts + 1, current_target_angle);
+            
+            turn_gyro(current_target_angle, 40);
+            align_gyro(current_target_angle, 30);
+            
+            Rameno.Center();
+            delay(800);
+            Rameno.Down();
+            delay(800);
+            Rameno.Magnet(true);
+            delay(600);
+            Rameno.Up();
+            delay(800);
+            
+            // Zkontrolovat laserem, jestli držíme baterku
+            if (Rameno.HasBattery()) {
+                printf("[GRAB] ÚSPĚCH! Baterka detekována na magnetu.\n");
+                break;
+            }
+            
+            printf("[GRAB] CHYBA: Baterka nedetekována! Uvolňuji magnet a zkusím se pootočit...\n");
+            
+            // Pustíme magnet pro další pokus
+            Rameno.Magnet(false);
+            delay(200);
+            
+            attempts++;
+            
+            // Pootočíme se o 5 stupňů v rozšiřujícím se vzoru (+5, -5, +10, -10 atd.)
+            float offset = 0.0f;
+            if (attempts == 1) offset = 5.0f;
+            else if (attempts == 2) offset = -5.0f;
+            else if (attempts == 3) offset = 10.0f;
+            else if (attempts == 4) offset = -10.0f;
+            else {
+                offset = (attempts % 2 == 0) ? -(5.0f * (attempts/2 + 1)) : (5.0f * (attempts/2 + 1));
+            }
+            
+            // Bezpečnostní limit pootočení
+            if (std::abs(offset) > 20.0f) {
+                offset = 0.0f;
+            }
+            
+            current_target_angle = grab_angle + offset;
+        }
         
         printf("[GRAB] Otáčím zpět na 0°...\n");
         turn_gyro(0.0f, 40);
@@ -284,6 +344,8 @@ void loop() {
 
         // === HLAVNÍ SMYČKA: 4× seber baterku a vlož do docku ===
         int delivered = 0;
+        bool dock_delivered[4] = {false, false, false, false};
+
         for (int cycle = 0; cycle < 4 && cycle < dock_count; cycle++) {
             printf("\n======== CYKLUS %d/4 ========\n", cycle + 1);
             
@@ -293,7 +355,15 @@ void loop() {
             // 1. Dojeď k baterii
             float bat_x = bat_cols_sorted[cycle];
             printf("[%d] Jedu k baterii na X=%.0f...\n", cycle+1, bat_x);
-            dojed_k(pos_x, bat_x, race_speed);
+            if (!dojed_k(pos_x, bat_x, race_speed)) {
+                printf("[%d] Detekován soupeř při cestě k baterii! Blikám červeně a zkusím další...\n", cycle+1);
+                // Zablikat červenou LEDkou
+                for(int i=0; i<5; i++) {
+                    rkLedRed(true); delay(80); rkLedRed(false); delay(80);
+                }
+                rkLedAll(false);
+                continue; // Přeskočíme na další (bližší) baterii
+            }
             delay(200);
             
             // 2. Chyť baterku
@@ -302,20 +372,54 @@ void loop() {
             rkLedGreen(false);
             delay(200);
             
-            // 3. Dojeď k docku
-            float dock_x = GameDimensions::DOCK_X_POSITIONS[my_docks[cycle]];
-            printf("[%d] Jedu k docku %d na X=%.0f...\n", cycle+1, my_docks[cycle]+1, dock_x);
-            rkLedRed(true);
-            dojed_k(pos_x, dock_x, race_speed);
-            delay(200);
+            // 3. Dojeď k docku (zkoušíme od nejvzdálenějšího 'cycle', při selhání zkusíme bližší)
+            bool success = false;
+            int chosen_dock_idx = -1;
             
-            // 4. Pusť baterku
-            pust_baterku(isRed);
-            delivered++;
-            rkLedAll(false);
+            for (int d_idx = cycle; d_idx < 4 && d_idx < dock_count; d_idx++) {
+                if (dock_delivered[d_idx]) continue; // Do tohoto docku už bylo doručeno
+                
+                float dock_x = GameDimensions::DOCK_X_POSITIONS[my_docks[d_idx]];
+                printf("[%d] Zkouším jet k docku %d na X=%.0f...\n", cycle+1, my_docks[d_idx]+1, dock_x);
+                rkLedRed(true);
+                
+                if (dojed_k(pos_x, dock_x, race_speed)) {
+                    success = true;
+                    chosen_dock_idx = d_idx;
+                    break;
+                } else {
+                    printf("[%d] Cesta k docku %d zablokována soupeřem! Blikám červeně a zkusím bližší...\n", 
+                           cycle+1, my_docks[d_idx]+1);
+                    // Zablikat červenou LEDkou
+                    for(int i=0; i<5; i++) {
+                        rkLedRed(true); delay(80); rkLedRed(false); delay(80);
+                    }
+                    delay(200);
+                }
+            }
             
-            printf("[%d] Baterka %d doručena do docku %d! (%d/4)\n", 
-                   cycle+1, cycle+1, my_docks[cycle]+1, delivered);
+            if (success && chosen_dock_idx != -1) {
+                // 4. Pusť baterku
+                pust_baterku(isRed);
+                dock_delivered[chosen_dock_idx] = true;
+                delivered++;
+                rkLedAll(false);
+                printf("[%d] Baterka %d doručena do docku %d! (%d/4)\n", 
+                       cycle+1, cycle+1, my_docks[chosen_dock_idx]+1, delivered);
+            } else {
+                printf("[%d] Nelze doručit do žádného volného docku kvůli soupeři! Uvolňuji rameno...\n", cycle+1);
+                // Nouzové uvolnění baterky na naší straně, aby se nezaseklo rameno
+                Rameno.Side(isRed ? Rameno.iLeft : Rameno.iRight);
+                delay(800);
+                Rameno.Magnet(false);
+                delay(500);
+                Rameno.Up();
+                delay(800);
+                Rameno.Center();
+                delay(300);
+                Rameno.Magnet(true); // nachystat pro příště
+                rkLedAll(false);
+            }
             delay(200);
         }
 
@@ -370,20 +474,11 @@ void loop() {
     // 3) TLAČÍTKO DOWN: TEST OTOČENÍ
     // ================================================================
     if (rkButtonDown(true)) {
-        printf("=== DOWN: TEST OTOČENÍ (90 stupňů a zpět) ===\n");
+        printf("=== DOWN: TEST CHYCENÍ BATERKY (NEKONEČNÉ HLEDÁNÍ) ===\n");
         rkLedYellow(true);
-        
-        // Otočení o 90 stupňů doleva a přesné dorovnání
-        turn_gyro(90.0f, 30);
-        align_gyro(90.0f, 25);
-        delay(1500);
-        
-        // Otočení zpět na 0 stupňů a dorovnání
-        turn_gyro(0.0f, 30);
-        align_gyro(0.0f, 25);
-        
+        chyt_baterku(isRed);
         rkLedYellow(false);
-        printf("=== TEST OTOČENÍ DOKONČEN ===\n");
+        printf("=== TEST CHYCENÍ BATERKY DOKONČEN ===\n");
     }
 
     // ================================================================
@@ -405,18 +500,54 @@ void loop() {
     }
 
     // ================================================================
-    // 6) TLAČÍTKO OFF: KALIBRACE / INICIALIZACE GYROSKOPU
+    // 6) TLAČÍTKO OFF: VYPISOVÁNÍ ULTRAZVUKŮ (CO 0.5s)
     // ================================================================
     if (rkButtonOff(true)) {
-        printf("=== OFF: INICIALIZACE A RESET GYROSKOPU ===\n");
+        printf("=== OFF: SPUŠTĚNO VYPISOVÁNÍ ULTRAZVUKŮ ===\n");
+        printf("(Stiskněte libovolné tlačítko pro ukončení)\n");
         rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
         
-        gyroInit();
-        gyroResetZ();
-        
-        delay(500);
+        // Čekání na uvolnění tlačítka OFF, aby se smyčka ihned neukončila
+        while (rkButtonIsPressed(BTN_OFF)) {
+            delay(10);
+        }
+        delay(200);
         rkLedAll(false);
-        printf("=== GYROSKOP ZKALIBROVÁN A RESETOVÁN ===\n");
+
+        uint32_t last_print = 0;
+        while (true) {
+            // Ukončení stiskem jakéhokoli tlačítka
+            if (rkButtonIsPressed(BTN_ON) || rkButtonIsPressed(BTN_OFF) || 
+                rkButtonIsPressed(BTN_UP) || rkButtonIsPressed(BTN_DOWN) || 
+                rkButtonIsPressed(BTN_LEFT) || rkButtonIsPressed(BTN_RIGHT)) {
+                break;
+            }
+            
+            uint32_t now = millis();
+            if (now - last_print >= 500) {
+                uint32_t u1 = uz_predni();
+                uint32_t u2 = uz_predni_levy();
+                uint32_t u3 = uz_predni_pravy();
+                uint32_t u4 = uz_zadek();
+                int laser = uz_laser();
+                bool has_bat = Rameno.HasBattery();
+                printf("U1 (predni): %4u mm | U2 (predni levy): %4u mm | U3 (predni pravy): %4u mm | U4 (zadek): %4u mm | LASER: ", u1, u2, u3, u4);
+                if (laser >= 0) {
+                    printf("%4d mm", laser);
+                } else {
+                    printf(" Err");
+                }
+                printf(" | BATTERY: %s\n", has_bat ? "MAME" : "NEMAME");
+                last_print = now;
+            }
+            delay(10);
+        }
+        
+        // Krátké bliknutí pro indikaci ukončení
+        rkLedRed(true);
+        delay(300);
+        rkLedRed(false);
+        printf("=== VYPISOVÁNÍ ULTRAZVUKŮ UKONČENO ===\n");
     }
 
     delay(10);

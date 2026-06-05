@@ -400,3 +400,41 @@ inline void TurnOnSpotRight_acc(float angle, float speed, float roztec_kol = 155
     }
     rkMotorsSetSpeed(0, 0);
 }
+
+/**
+ * \brief Vrátí vzdálenost z předního ultrazvukového senzoru (U1) v mm.
+ */
+inline uint32_t uz_predni() {
+    return rkUltraMeasure(1);
+}
+
+/**
+ * \brief Vrátí vzdálenost z předního levého ultrazvukového senzoru (U2) v mm.
+ */
+inline uint32_t uz_predni_levy() {
+    return rkUltraMeasure(2);
+}
+
+/**
+ * \brief Vrátí vzdálenost z předního pravého ultrazvukového senzoru (U3) v mm.
+ */
+inline uint32_t uz_predni_pravy() {
+    return rkUltraMeasure(3);
+}
+
+/**
+ * \brief Vrátí vzdálenost ze zadního ultrazvukového senzoru (U4) v mm.
+ */
+inline uint32_t uz_zadek() {
+    return rkUltraMeasure(4);
+}
+
+/**
+ * \brief Vrátí vzdálenost z laserového senzoru (VL53L0X) na Wire1 v mm.
+ *        Vrací -1 v případě chyby měření.
+ */
+inline int uz_laser() {
+    return rk_laser_measure("laser");
+}
+
+

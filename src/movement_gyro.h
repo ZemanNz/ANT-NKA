@@ -289,6 +289,18 @@ inline MoveResult move_straight_gyro(float mm, float speed, uint32_t timeout_ms 
     int loop_counter = 0;
 
     while (true) {
+        // Okamžité zastavení při detekci soupeře na pozadí
+        extern volatile bool opponentDetected;
+        if (opponentDetected) {
+            rkMotorsSetSpeed(0, 0);
+            Serial.println("[move_straight_gyro] ZASTAVENO: Detekován soupeř!");
+            // Vrátíme false a doposud ujetou vzdálenost
+            float pos_l = std::abs(rkMotorsGetPositionLeft(true));
+            float pos_r = std::abs(rkMotorsGetPositionRight(false));
+            float current_real_pos = ((pos_l + pos_r) / 2.0f) * encoder_to_real;
+            return {false, reverse ? -current_real_pos : current_real_pos};
+        }
+
         loop_counter++;
         unsigned long now = millis();
         float elapsed_ms = (float)(now - start_time);
