@@ -438,14 +438,7 @@ inline void turn_gyro(float target_global_angle, float speed, uint32_t timeout_m
     float min_speed = 3.0f;
     float ramp_up_deg = 15.0f;
     float ramp_down_deg = 30.0f;
-    
-    // Dynamický offset: pro malé zatáčky zmenšíme offset, aby nedocházelo k předčasnému vypnutí
-    float active_offset = 3.5f;
-    float abs_delta = std::abs(delta_angle);
-    if (abs_delta < 15.0f) {
-        active_offset = abs_delta * 0.2f; // 20% celkového úhlu
-        if (active_offset < 0.5f) active_offset = 0.5f;
-    }
+    const float offset_deg = 3.5f;
 
     bool turn_left = (delta_angle > 0);
     
@@ -470,11 +463,11 @@ inline void turn_gyro(float target_global_angle, float speed, uint32_t timeout_m
         
         // Podmínka zastavení (jednosměrný pohyb k absolutnímu cíli s offsetem)
         if (turn_left) {
-            if (current_angle >= target_global_angle - active_offset) {
+            if (current_angle >= target_global_angle - offset_deg) {
                 break;
             }
         } else {
-            if (current_angle <= target_global_angle + active_offset) {
+            if (current_angle <= target_global_angle + offset_deg) {
                 break;
             }
         }

@@ -228,37 +228,28 @@ void loop() {
     auto chyt_baterku = [](bool isRed, float original_bat_x, float& robot_x) {
         float diff_x = original_bat_x - 1500.0f; // Vždy bereme střed hřiště X=1500 jako základ pozice robota
         // Výpočet úhlu natočení robota z X=1500, aby rameno na boku dosáhlo na požadovanou X pozici
-        float grab_angle = (isRed ? 90.0f : -90.0f) - (diff_x * 0.18f);
+        float grab_angle = (isRed ? 90.0f : -90.0f) - (diff_x * 0.08f);
         float current_target_angle = grab_angle;
         int attempts = 0;
         bool shifted_near = false;
+        
         while (true) {
-            // Po 5, 10, 15 atd. neúspěšných pokusech popojedeme a zkusíme to z jiného místa
-            if (attempts > 0 && attempts % 5 == 0) {
-                printf("[GRAB] Baterka stále nenalezena (pokus %d). Otáčím na 0° a popojedu...\n", attempts);
-                turn_gyro(0.0f, 40);
-                align_gyro(0.0f, 30);
+            // Po 5 neúspěšných pokusech popojedeme blíž k bateriím o 5 cm (50 mm)
+            // Protože zadek robota míří k bateriím na tomto úhlu, stačí jednoduše couvnout!
+            if (attempts > 0 && attempts % 5 == 0 && !shifted_near) {
+                printf("[GRAB] Baterka stále nenalezena (pokus %d). Couvám o 5 cm blíž k bateriím na úhlu %.1f°...\n", 
+                       attempts, current_target_angle);
                 
-                // Pokus 5:  Zacouváme o -30 mm
-                // Pokus 10: Popojedeme dopředu o +60 mm (+30 mm od startu)
-                // Pokus 15: Zacouváme o -60 mm
-                float shift = (attempts == 5) ? -30.0f : ((attempts == 10) ? 60.0f : -60.0f);
-                printf("[GRAB] Popojíždím o %.0f mm...\n", shift);
+                // Couvnout o 50 mm (pozpátku) na aktuálním úhlu
+                move_straight_gyro(-50.0f, 20, 1000, current_target_angle);
+                shifted_near = true;
                 
-                MoveResult res = move_straight_gyro(shift, 20, 1500, 0.0f);
-                
-                // Aktualizace pozice robota podle ujeté vzdálenosti se znaménkem
-                if (isRed) {
-                    robot_x -= res.traveled_mm;
-                } else {
-                    robot_x += res.traveled_mm;
-                }
-                printf("[GRAB] Nová pozice X: %.1f mm. Pokračuji v hledání...\n", robot_x);
-                
-                // Přepočítáme úhel natočení robota podle nové pozice
-                float new_diff_x = original_bat_x - robot_x;
-                grab_angle = (isRed ? 90.0f : -90.0f) - (new_diff_x * 0.18f);
-                current_target_angle = grab_angle;
+                printf("[GRAB] Robot je nyní o 5 cm blíže. Pokračuji v hledání...\n");
+                current_target_angle = grab_angle; // Znova zkusíme výchozí úhel
+            } else if (attempts > 0 && attempts % 10 == 0) {
+                // Pokud ani po 10 pokusech (5 na dálku, 5 zblízka) baterku nemáme, vzdáme to, abychom nezůstali viset
+                printf("[GRAB] Ani po 10 pokusech baterka nenalezena. Ukončuji hledání.\n");
+                break;
             }
 
             printf("[GRAB] Pokus %d: Otáčím se na %.1f° k bateriím (původní cíl X=%.0f)...\n", 
@@ -290,7 +281,7 @@ void loop() {
             
             attempts++;
             
-            // Pootočíme se o 5 stupňů v rozšiřujícím se vzoru (+5, -5, +10, -10 atd.)
+            // Pootočíme se v rozšiřujícím se vzoru (+5, -5, +10, -10)
             float offset = 0.0f;
             if (attempts % 5 == 1) offset = 5.0f;
             else if (attempts % 5 == 2) offset = -5.0f;
@@ -303,13 +294,20 @@ void loop() {
             current_target_angle = grab_angle + offset;
         }
         
+        // Pokud jsme byli posunutí o 5 cm blíž, musíme se vrátit zpět (popojet dopředu)!
+        if (shifted_near) {
+            printf("[GRAB] Návrat zpět o 5 cm do bezpečné linie (popojíždím dopředu o 50 mm na úhlu %.1f°)...\n", current_target_angle);
+            // Popojet 50 mm (dopředu)
+            move_straight_gyro(50.0f, 20, 1000, current_target_angle);
+        }
+        
         printf("[GRAB] Otáčím zpět na 0°...\n");
         turn_gyro(0.0f, 40);
         align_gyro(0.0f, 30);
         
         Rameno.Center();
         delay(300);
-        printf("[GRAB] Baterka chycena!\n");
+        printf("[GRAB] Funkce chyt_baterku dokončena.\n");
     };
 
     /**
@@ -417,24 +415,27 @@ void loop() {
             // LED indikace cyklu
             rkLedGreen(true);
             
-            // 1. Dojeď k baterii (středy prostředních sloupců COL2 a COL3)
+            // 1. Dojeď k baterii (vždy přesně na střed hřiště X = 1500 mm)
             float original_bat_x = bat_cols_sorted[cycle];
-            float bat_x = original_bat_x;
-            if (bat_x == GameDimensions::BATTERY_COL1_X_MM) {
-                bat_x = GameDimensions::BATTERY_COL2_X_MM;
-            } else if (bat_x == GameDimensions::BATTERY_COL4_X_MM) {
-                bat_x = GameDimensions::BATTERY_COL3_X_MM;
-            }
+            float bat_x = 1500.0f;
             
-            printf("[%d] Jedu k baterii na X=%.0f (původní cíl sloupce=%.0f)...\n", cycle+1, bat_x, original_bat_x);
-            if (!dojed_k(pos_x, bat_x, race_speed, false)) {
-                printf("[%d] Detekován soupeř při cestě k baterii! Blikám červeně a zkusím další...\n", cycle+1);
-                // Zablikat červenou LEDkou
-                for(int i=0; i<5; i++) {
-                    rkLedRed(true); delay(80); rkLedRed(false); delay(80);
+            // Nekonečná smyčka pro bezpečné dojetí k baterii (pokud překáží soupeř, počkáme 5s a zkusíme znovu)
+            while (true) {
+                printf("[%d] Jedu k baterii na X=%.0f (původní cíl sloupce=%.0f)...\n", cycle+1, bat_x, original_bat_x);
+                if (dojed_k(pos_x, bat_x, race_speed, false)) {
+                    // Úspěšně dojeto k baterii!
+                    break;
                 }
-                rkLedAll(false);
-                continue; // Přeskočíme na další (bližší) baterii
+                
+                printf("[%d] Cesta k baterii zablokována soupeřem! Blikám červeně a čekám 5 sekund...\n", cycle+1);
+                // Blikání červenou LEDkou po dobu 5 sekund (25× 200 ms)
+                for (int i = 0; i < 25; i++) {
+                    rkLedRed(true);
+                    delay(100);
+                    rkLedRed(false);
+                    delay(100);
+                }
+                printf("[%d] Zkouším jet k baterii znovu...\n", cycle+1);
             }
             delay(200);
             
@@ -495,54 +496,51 @@ void loop() {
             delay(200);
         }
 
-        // === NÁVRAT DOMŮ: TLAČÍTKOVÁ PARKOVACÍ SEKVENCE ===
+        // === NÁVRAT DOMŮ: Otočení a parkovací manévr přes nárazové bumpry ===
         printf("\n=== NÁVRAT DOMŮ (PARKOVÁNÍ) ===\n");
         rkLedRed(true); rkLedGreen(true);
         
-        float home_angle = isRed ? 180.0f : 0.0f;
+        // 1. Dorovnat směr k soupeři (předek míří k soupeři)
+        align_gyro(0.0f, 30);
+        
+        // 2. Zacouvat zadkem robota k domácí zdi (bez otáčení o 180°)
+        float home_x = isRed 
+            ? (GameDimensions::FIELD_WIDTH_MM - 50.0f)   // Pravá zeď
+            : 50.0f;                                       // Levá zeď
+        float back_distance = std::abs(pos_x - home_x) + 120.0f; // + 120mm pro jistotu nárazu zadku
+        printf("[HOME] Couvám %.0f mm ke zdi (zadek napřed)...\n", back_distance);
+        move_straight_gyro(-back_distance, 25, 8000, 0.0f);
+        delay(200);
+        
+        // 3. Popojet dopředu (do hřiště) o 100 mm (10 cm)
+        printf("[HOME] Popojíždím dopředu o 100 mm...\n");
+        move_straight_gyro(100.0f, 25, 2000, 0.0f);
+        delay(200);
+        
+        // 4. Otočit se o 90° k dolnímu/hornímu mantinelu
         float wall_angle = isRed ? 90.0f : -90.0f;
-        
-        // 1. Otočit se čelem k domácí zdi
-        printf("[HOME] Otáčím se čelem k domácí zdi (úhel %.1f°)...\n", home_angle);
-        turn_gyro(home_angle, 40);
-        align_gyro(home_angle, 30);
-        delay(100);
-
-        // 2. První bouchnutí tlačítky (předními bumpry do domácí zdi)
-        printf("[HOME] 1. NÁRAZ DO DOMÁCÍ ZDI...\n");
-        jed_do_narazu(20, 4000);
-        delay(200);
-        
-        // 3. Couvnout od domácí zdi o 150 mm (15 cm)
-        printf("[HOME] Couvám 15 cm od domácí zdi...\n");
-        move_straight_gyro(-150.0f, 25, 2000, home_angle);
-        delay(200);
-        
-        // 4. Otočit se o 90° k bočnímu mantinelu
         printf("[HOME] Otáčím se k bočnímu mantinelu (úhel %.1f°)...\n", wall_angle);
         turn_gyro(wall_angle, 40);
         align_gyro(wall_angle, 30);
-        delay(100);
         
-        // 5. Druhé bouchnutí tlačítky (do bočního mantinelu)
-        printf("[HOME] 2. NÁRAZ DO BOČNÍHO MANTINELU...\n");
+        // 5. Jízda dopředu do nárazu předními bumpry do mantinelu
+        printf("[HOME] Jedu dopředu do nárazu do mantinelu...\n");
         jed_do_narazu(20, 4000);
         delay(200);
         
-        // 6. Odjet od bočního mantinelu o 300 mm (30 cm couvnutím)
-        printf("[HOME] Odjíždím 30 cm od bočního mantinelu (couvám)...\n");
+        // 6. Zacouvat o 300 mm (30 cm) zpět od mantinelu
+        printf("[HOME] Odtahuji se od mantinelu (couvám 300 mm)...\n");
         move_straight_gyro(-300.0f, 25, 3000, wall_angle);
         delay(200);
         
-        // 7. Otočit se doleva zpět k domácí zdi
-        printf("[HOME] Otáčím se doleva k domácí zdi (úhel %.1f°)...\n", home_angle);
-        turn_gyro(home_angle, 40);
-        align_gyro(home_angle, 30);
-        delay(100);
+        // 7. Otočit se čelem k domácí zdi (úhel 180.0°)
+        printf("[HOME] Otáčím se čelem k domácí zdi (úhel 180.0°)...\n");
+        turn_gyro(180.0f, 40);
+        align_gyro(180.0f, 30);
         
-        // 8. Třetí bouchnutí tlačítky (do domácí zdi)
-        printf("[HOME] 3. NÁRAZ DO DOMÁCÍ ZDI (usazení)...\n");
-        jed_do_narazu(20, 4000);
+        // 8. Finální jemný čelní nájezd do domácí zdi (přední bumpry)
+        printf("[HOME] Finální usazení do domácí zdi...\n");
+        jed_do_narazu(15, 3000);
         
         // Stop
         rkMotorsSetSpeed(0, 0);
