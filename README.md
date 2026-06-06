@@ -26,7 +26,7 @@ Před každým zápasem je nutné provést následující kroky:
 
 ## 🕹️ Startovací Menu (Konfigurace před zápasem)
 
-Robot se konfiguruje přímo na startovní pozici pomocí tří tlačítek na těle robota: zadního levého (**LEFT**), zadního pravého (**RIGHT**) a horního tlačítka (**UP**).
+Robot se konfiguruje přímo na startovní pozici pomocí tlačítek na těle robota: zadního levého (**LEFT**), zadního pravého (**RIGHT**), horního (**UP**) a dolního (**DOWN**).
 
 ### 1. 🔴/🔵 Výběr barvy týmu (Tlačítko UP)
 Tým se vybírá cyklicky stisknutím tlačítka **UP**.
@@ -35,6 +35,9 @@ Tým se vybírá cyklicky stisknutím tlačítka **UP**.
 * **Indikace na desce**:
   * Tým **RED** $\rightarrow$ Svítí červená desková LED (`rkLedRed`).
   * Tým **BLUE** $\rightarrow$ Svítí modrá desková LED (`rkLedBlue`).
+
+### 2. 🔍 Procházení kombinací (Tlačítko DOWN)
+Stisknutím tlačítka **DOWN** můžeš cyklicky měnit kombinace **1 -> 2 -> 3 -> 4 -> 1...** pro náhled na LED pásku, **aniž by to odstartovalo jízdu**. Žlutá LED po stisku zabliká (index + 1)krát jako potvrzení zvolené kombinace.
 
 ---
 

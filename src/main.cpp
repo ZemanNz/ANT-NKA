@@ -256,6 +256,26 @@ void loop() {
                 delay(100);
             }
         }
+
+        // Tlačítko DOWN: Pouze cyklické přepínání kombinací (0 až 3) pro náhled na LED pásku
+        if (rkButtonDown(false)) {
+            delay(20); // Debounce
+            if (rkButtonDown(false)) {
+                while (rkButtonDown(false)) {
+                    delay(10);
+                }
+                layout_idx = (layout_idx + 1) % 4;
+                printf("[CONF] Tlačítko DOWN uvolněno -> Změna kombinace pro náhled: %d\n", layout_idx + 1);
+                
+                // Zpětná vazba: blikneme žlutou LED (index + 1)krát
+                for (int i = 0; i <= layout_idx; i++) {
+                    rkLedYellow(true);
+                    delay(150);
+                    rkLedYellow(false);
+                    delay(150);
+                }
+            }
+        }
     }
 
     // ================================================================
