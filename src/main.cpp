@@ -1,4 +1,5 @@
 #include "robotka.h"
+#include <SmartLeds.h>
 
 #include <Arduino.h>
 #include <string>
@@ -12,6 +13,30 @@
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
 #include "OpponentDetection.h"
+
+// Globální instance RGB LED pásku (8 diod, pin 12)
+SmartLed strip(LED_WS2812B, 8, 12, 0, DoubleBuffer);
+
+// Pomocná funkce pro aktualizaci LED pásku
+void aktualizuj_led_pasek(bool isRed, int layout_idx) {
+    // Získání barev z kombinace docků
+    const TeamColor* layout = GameDimensions::DOCK_LAYOUTS[layout_idx];
+    
+    for (int i = 0; i < 8; i++) {
+        // Index baterky: pro RED odspodu 7->0, pro BLUE odspodu 0->7
+        int battery_idx = isRed ? (7 - i) : i;
+        TeamColor color = layout[battery_idx];
+        
+        if (color == TeamColor::Red) {
+            strip[i] = Rgb{2, 0, 0};
+        } else if (color == TeamColor::Blue) {
+            strip[i] = Rgb{0, 0, 2};
+        } else {
+            strip[i] = Rgb{0, 0, 0};
+        }
+    }
+    strip.show();
+}
 
 
 // Nastavení Roadsidu
@@ -147,7 +172,7 @@ void setup() {
 void loop() {
     // === NASTAVENÍ PRO ZÁPAS / TESTY (lze za běhu měnit zadními tlačítky) ===
     static bool isRed = true;          // Výchozí barva (true = RED, false = BLUE)
-    static int layout_idx = 0;         // Výchozí kombinace docků (0 až 3)
+    static int layout_idx = 0;         // Výchozí kombinace docků (index 0, tj. kombinace 1)
     const float race_speed = 35.0f;    // Výchozí rychlost jízdy (%)
 
     // Globální/static pozice robota v ose X (sdílená lambdami a testovacími tlačítky)
@@ -156,71 +181,79 @@ void loop() {
         : GameDimensions::POCATECNI_X_STRED_MM;
 
     static bool start_requested = false;
-    static bool has_switched_to_blue = false;
-    static bool has_clicked_right = false;
 
     // Pokud ještě neodstartovalo, čteme konfiguraci
     if (!start_requested) {
+        // Aktualizace LED pásku (červená vs modrá, výška podle kombinace)
+        aktualizuj_led_pasek(isRed, layout_idx);
+
         // Světelná indikace barvy týmu v pohotovostním režimu
-        if (!has_switched_to_blue) {
+        if (isRed) {
             rkLedRed(true);
+            rkLedBlue(false);
             rkLedGreen(false);
         } else {
             rkLedRed(false);
-            rkLedGreen(true);
+            rkLedBlue(true);
+            rkLedGreen(false);
         }
 
-        // Levé tlačítko: Pokud se klikalo pravým nebo už se přepnulo na BLUE -> START. Jinak přepne na BLUE.
-        if (rkButtonLeft(false)) {
+        // Tlačítko UP: Výběr barvy týmu RED <-> BLUE
+        if (rkButtonUp(false)) {
             delay(20); // Debounce
-            if (rkButtonLeft(false)) {
-                while (rkButtonLeft(false)) {
-                    delay(10); // Čekání na uvolnění (release)
+            if (rkButtonUp(false)) {
+                while (rkButtonUp(false)) {
+                    delay(10);
                 }
-                
-                if (has_clicked_right || has_switched_to_blue) {
-                    start_requested = true;
-                    printf("[CONF] Stisk levého -> START PROGRAMU za %s!\n", isRed ? "RED" : "BLUE");
-                } else {
-                    has_switched_to_blue = true;
-                    isRed = false;
-                    pos_x = GameDimensions::POCATECNI_X_STRED_MM;
-                    printf("[CONF] Přepnuto na BLUE (zelená LED) | Start X: %.0f mm\n", pos_x);
-                }
+                isRed = !isRed;
+                pos_x = isRed 
+                    ? (GameDimensions::FIELD_WIDTH_MM - GameDimensions::STARTZONE_CENTER_MM - GameDimensions::ZADEK_OD_STREDU_MM) 
+                    : GameDimensions::POCATECNI_X_STRED_MM;
+                printf("[CONF] Tlačítko UP uvolněno -> Přepnuto na %s | Start X: %.0f mm\n", 
+                       isRed ? "RED (Červená LED)" : "BLUE (Modrá LED)", pos_x);
                 delay(100);
             }
         }
 
-        // Pravé tlačítko: Mění kombinaci docků (0 až 3)
-        if (rkButtonRight(false)) {
+        // Levé tlačítko: Krátký stisk -> Kombinace 3 (start), Dlouhý stisk -> Kombinace 4 (start)
+        if (rkButtonLeft(false)) {
             delay(20); // Debounce
-            if (rkButtonRight(false)) {
-                while (rkButtonRight(false)) {
-                    delay(10); // Čekání na uvolnění (release)
+            if (rkButtonLeft(false)) {
+                uint32_t press_start = millis();
+                while (rkButtonLeft(false)) {
+                    delay(10);
                 }
-                has_clicked_right = true;
-                layout_idx = (layout_idx + 1) % 4;
-                printf("[CONF] Pravé tlačítko uvolněno -> Kombinace docků: %d (has_clicked_right=true, levé tlačítko nyní startuje RED)\n", layout_idx);
-                
-                // Zpětná vazba: blikneme žlutou LED (index + 1)krát
-                for (int i = 0; i <= layout_idx; i++) {
-                    rkLedYellow(true);
-                    delay(150);
-                    rkLedYellow(false);
-                    delay(150);
+                uint32_t duration = millis() - press_start;
+                if (duration > 500) {
+                    layout_idx = 3; // Kombinace 4
+                    printf("[CONF] Levé tlačítko uvolněno (DLOUHÝ stisk: %lu ms) -> START (Kombinace 4)\n", (unsigned long)duration);
+                } else {
+                    layout_idx = 2; // Kombinace 3
+                    printf("[CONF] Levé tlačítko uvolněno (KRÁTKÝ stisk: %lu ms) -> START (Kombinace 3)\n", (unsigned long)duration);
                 }
+                start_requested = true;
+                delay(100);
             }
         }
 
-        // Tlačítko ON: Okamžitý start pro aktuálně nastavenou barvu (zůstává jako záloha)
-        if (rkButtonOn(false)) {
-            delay(20);
-            if (rkButtonOn(false)) {
-                while (rkButtonOn(false)) {
+        // Pravé tlačítko: Krátký stisk -> Kombinace 1 (start), Dlouhý stisk -> Kombinace 2 (start)
+        if (rkButtonRight(false)) {
+            delay(20); // Debounce
+            if (rkButtonRight(false)) {
+                uint32_t press_start = millis();
+                while (rkButtonRight(false)) {
                     delay(10);
                 }
+                uint32_t duration = millis() - press_start;
+                if (duration > 500) {
+                    layout_idx = 1; // Kombinace 2
+                    printf("[CONF] Pravé tlačítko uvolněno (DLOUHÝ stisk: %lu ms) -> START (Kombinace 2)\n", (unsigned long)duration);
+                } else {
+                    layout_idx = 0; // Kombinace 1
+                    printf("[CONF] Pravé tlačítko uvolněno (KRÁTKÝ stisk: %lu ms) -> START (Kombinace 1)\n", (unsigned long)duration);
+                }
                 start_requested = true;
-                printf("[CONF] Tlačítko ON stisknuto -> START PROGRAMU za %s!\n", isRed ? "RED" : "BLUE");
+                delay(100);
             }
         }
     }
@@ -424,8 +457,24 @@ void loop() {
     // ================================================================
     if (start_requested) {
         start_requested = false;      // Reset příznaku pro případnou další jízdu
-        has_switched_to_blue = false; // Reset barvy pro další start
-        has_clicked_right = false;    // Reset kliknutí pravým pro další start
+        
+        // Prodleva 300 ms po uvolnění startovního tlačítka (pro klidné oddálení ruky)
+        delay(300);
+
+        // Zhasnutí LED pásku při startu jízdy
+        for (int i = 0; i < 8; i++) {
+            strip[i] = Rgb{0, 0, 0};
+        }
+        strip.show();
+        
+        // === POMOCNÝ TEST BEZ POHYBU (na přání uživatele) ===
+        bool disable_movement = false;
+        if (disable_movement) {
+            printf("[TEST] Pohyb zakázán. Zhasínám LED pásek a vracím se zpět do menu za 3 sekundy.\n");
+            delay(3000);
+            isRed = true; // Nastavíme zpět na RED
+            return; // Ukončíme loop() předčasně pro vynechání pohybu
+        }
         
         // Re-inicializace sdílené pozice pos_x pro novou jízdu
         if (isRed) {
@@ -437,7 +486,7 @@ void loop() {
 
         printf("=== START SOUTĚŽNÍ JÍZDY ===\n");
         printf("Tým: %s | Kombinace: %d | Start X: %.0f mm\n", 
-               isRed ? "ČERVENÝ" : "MODRÝ", layout_idx, pos_x);
+               isRed ? "ČERVENÝ" : "MODRÝ", layout_idx + 1, pos_x);
 
         // Indikace + čekání 1 sekundu
         rkLedRed(true); rkLedYellow(true); rkLedGreen(true);
