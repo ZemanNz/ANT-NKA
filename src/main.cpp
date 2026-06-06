@@ -160,6 +160,39 @@ void loop() {
     // ================================================================
 
     /**
+     * Jede dopředu rychlostí power, dokud nenarazí předními tlačítky (bumpry).
+     * Vrátí true, pokud úspěšně narazil, jinak false.
+     */
+    auto jed_do_narazu = [](float power, uint32_t timeout_ms) -> bool {
+        printf("[BUMPER] Jedu dopředu rychlostí %.0f%% do nárazu...\n", power);
+        rkMotorsSetSpeed(power, power);
+        
+        uint32_t start = millis();
+        while (millis() - start < timeout_ms) {
+            bool left = rkButtonLeft(false);
+            bool right = rkButtonRight(false);
+            
+            if (left && right) {
+                printf("[BUMPER] Obě tlačítka sepnuta (náraz čelní). Zastavuji.\n");
+                rkMotorsSetSpeed(0, 0);
+                return true;
+            }
+            if (left || right) {
+                // Srovnání: jedno je sepnuté, chvilku ještě jedeme, aby se dotklo i druhé a srovnalo se
+                delay(120);
+                rkMotorsSetSpeed(0, 0);
+                printf("[BUMPER] Dotyk detekován (L:%d, R:%d), srovnáno.\n", left, right);
+                return true;
+            }
+            delay(10);
+        }
+        
+        rkMotorsSetSpeed(0, 0);
+        printf("[BUMPER] Timeout nárazu vypršel!\n");
+        return false;
+    };
+
+    /**
      * Dojeď tak, aby rameno bylo nad cílovou X pozicí.
      * Automaticky počítá s offsetem ramena a směrem jízdy dle barvy týmu (pokud use_offset=true).
      */
@@ -193,12 +226,12 @@ void loop() {
      * Končí s ramenem v pozici Up+Center (reset).
      */
     auto chyt_baterku = [](bool isRed, float original_bat_x, float& robot_x) {
-        float diff_x = original_bat_x - robot_x;
-        // Výpočet úhlu natočení robota, aby rameno na boku dosáhlo na požadovanou X pozici
+        float diff_x = original_bat_x - 1500.0f; // Vždy bereme střed hřiště X=1500 jako základ pozice robota
+        // Výpočet úhlu natočení robota z X=1500, aby rameno na boku dosáhlo na požadovanou X pozici
         float grab_angle = (isRed ? 90.0f : -90.0f) - (diff_x * 0.18f);
         float current_target_angle = grab_angle;
         int attempts = 0;
-        
+        bool shifted_near = false;
         while (true) {
             // Po 5, 10, 15 atd. neúspěšných pokusech popojedeme a zkusíme to z jiného místa
             if (attempts > 0 && attempts % 5 == 0) {
@@ -462,24 +495,58 @@ void loop() {
             delay(200);
         }
 
-        // === NÁVRAT DOMŮ: Zacouvej ke zdi a naraz tlačítkama ===
-        printf("\n=== NÁVRAT DOMŮ ===\n");
+        // === NÁVRAT DOMŮ: TLAČÍTKOVÁ PARKOVACÍ SEKVENCE ===
+        printf("\n=== NÁVRAT DOMŮ (PARKOVÁNÍ) ===\n");
         rkLedRed(true); rkLedGreen(true);
         
-        // Dorovnej směr
-        align_gyro(0.0f, 30);
+        float home_angle = isRed ? 180.0f : 0.0f;
+        float wall_angle = isRed ? 90.0f : -90.0f;
         
-        // Zacouvej ke zdi
-        float home_x = isRed 
-            ? (GameDimensions::FIELD_WIDTH_MM - 50.0f)   // Pravá zeď
-            : 50.0f;                                       // Levá zeď
-        float back_distance = std::abs(pos_x - home_x) + 100.0f; // + 100mm pro jistotu nárazu
-        printf("[HOME] Couvám %.0f mm ke zdi...\n", back_distance);
-        move_straight_gyro(-back_distance, 25, 8000, 0.0f);
+        // 1. Otočit se čelem k domácí zdi
+        printf("[HOME] Otáčím se čelem k domácí zdi (úhel %.1f°)...\n", home_angle);
+        turn_gyro(home_angle, 40);
+        align_gyro(home_angle, 30);
+        delay(100);
+
+        // 2. První bouchnutí tlačítky (předními bumpry do domácí zdi)
+        printf("[HOME] 1. NÁRAZ DO DOMÁCÍ ZDI...\n");
+        jed_do_narazu(20, 4000);
+        delay(200);
+        
+        // 3. Couvnout od domácí zdi o 150 mm (15 cm)
+        printf("[HOME] Couvám 15 cm od domácí zdi...\n");
+        move_straight_gyro(-150.0f, 25, 2000, home_angle);
+        delay(200);
+        
+        // 4. Otočit se o 90° k bočnímu mantinelu
+        printf("[HOME] Otáčím se k bočnímu mantinelu (úhel %.1f°)...\n", wall_angle);
+        turn_gyro(wall_angle, 40);
+        align_gyro(wall_angle, 30);
+        delay(100);
+        
+        // 5. Druhé bouchnutí tlačítky (do bočního mantinelu)
+        printf("[HOME] 2. NÁRAZ DO BOČNÍHO MANTINELU...\n");
+        jed_do_narazu(20, 4000);
+        delay(200);
+        
+        // 6. Odjet od bočního mantinelu o 300 mm (30 cm couvnutím)
+        printf("[HOME] Odjíždím 30 cm od bočního mantinelu (couvám)...\n");
+        move_straight_gyro(-300.0f, 25, 3000, wall_angle);
+        delay(200);
+        
+        // 7. Otočit se doleva zpět k domácí zdi
+        printf("[HOME] Otáčím se doleva k domácí zdi (úhel %.1f°)...\n", home_angle);
+        turn_gyro(home_angle, 40);
+        align_gyro(home_angle, 30);
+        delay(100);
+        
+        // 8. Třetí bouchnutí tlačítky (do domácí zdi)
+        printf("[HOME] 3. NÁRAZ DO DOMÁCÍ ZDI (usazení)...\n");
+        jed_do_narazu(20, 4000);
         
         // Stop
         rkMotorsSetSpeed(0, 0);
-        delay(500);
+        delay(300);
 
         // === KONEC ZÁPASU: Zvukový signál a blikání ===
         printf("=== KONEC ZÁPASU === Doručeno: %d/4 baterií\n", delivered);
