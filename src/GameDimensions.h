@@ -61,11 +61,10 @@ namespace GameDimensions {
     // =========================================================================
     // POČÁTEČNÍ POZICE ROBOTA
     // =========================================================================
-    // Zadek robota dáváme na střed startovní zóny (25 cm od zdi)
-    // Střed robota (osa kol) = 25 + 8 = 33 cm od zdi
-    constexpr float STARTZONE_CENTER_MM = START_ZONE_SIZE_MM / 2.0f;              // 250 mm
-    constexpr float POCATECNI_X_STRED_MM = STARTZONE_CENTER_MM + ZADEK_OD_STREDU_MM; // 330 mm
-    constexpr float POCATECNI_X_RAMENO_MM = POCATECNI_X_STRED_MM - RAMENO_OD_STREDU_MM; // 290 mm
+    // Zadek robota je nově na X=20 cm (200 mm) od stěny (o 5 cm blíže stěně než původních 25 cm)
+    constexpr float STARTZONE_CENTER_MM = 200.0f;                                 // 200 mm
+    constexpr float POCATECNI_X_STRED_MM = STARTZONE_CENTER_MM + ZADEK_OD_STREDU_MM; // 280 mm
+    constexpr float POCATECNI_X_RAMENO_MM = POCATECNI_X_STRED_MM - RAMENO_OD_STREDU_MM; // 240 mm
 
     // =========================================================================
     // POZICE BOXŮ PRO BATERIE (DOCKY) - naměřeno na hřišti
@@ -115,20 +114,22 @@ namespace GameDimensions {
     };
 
     // =========================================================================
-    // POZICE BATERIÍ - naměřeno na hřišti
+    // POZICE BATERIÍ - naměřeno na hřišti (12 baterek v 6 sloupcích)
     // =========================================================================
-    // První sloupec baterií je 1350 mm od stejné zdi
-    // 4 sloupce, 2 řady (bližší Y=950, vzdálenější Y=1050)
+    // Středy 6 sloupců baterií jsou symetrické kolem středu hřiště X = 1500 mm.
+    // Šířka baterie = 60 mm, rozteč (střed-střed) = 60 mm (sloupce stojí těsně vedle sebe).
     constexpr float BATTERY_COL1_X_MM = 1350.0f;
-    constexpr float BATTERY_COL2_X_MM = 1480.0f;      // +130 mm
-    constexpr float BATTERY_COL3_X_MM = 1620.0f;      // +140 mm
-    constexpr float BATTERY_COL4_X_MM = 1750.0f;      // +130 mm
+    constexpr float BATTERY_COL2_X_MM = 1410.0f;
+    constexpr float BATTERY_COL3_X_MM = 1470.0f;
+    constexpr float BATTERY_COL4_X_MM = 1530.0f;
+    constexpr float BATTERY_COL5_X_MM = 1590.0f;
+    constexpr float BATTERY_COL6_X_MM = 1650.0f;
 
     constexpr float BATTERY_ROW_CLOSER_Y_MM = 950.0f;  // Bližší k autům
     constexpr float BATTERY_ROW_FARTHER_Y_MM = 1050.0f; // Vzdálenější od aut
 
-    // Fyzické pozice 8 baterií (Sloupec × Řada)
-    const Position2D BATTERIES[8] = {
+    // Fyzické pozice 12 baterií (Sloupec × Řada)
+    const Position2D BATTERIES[12] = {
         {BATTERY_COL1_X_MM, BATTERY_ROW_CLOSER_Y_MM},   // Baterie 1 (Sl.1, blíž)
         {BATTERY_COL1_X_MM, BATTERY_ROW_FARTHER_Y_MM},  // Baterie 2 (Sl.1, dál)
         {BATTERY_COL2_X_MM, BATTERY_ROW_CLOSER_Y_MM},   // Baterie 3 (Sl.2, blíž)
@@ -136,16 +137,21 @@ namespace GameDimensions {
         {BATTERY_COL3_X_MM, BATTERY_ROW_CLOSER_Y_MM},   // Baterie 5 (Sl.3, blíž)
         {BATTERY_COL3_X_MM, BATTERY_ROW_FARTHER_Y_MM},  // Baterie 6 (Sl.3, dál)
         {BATTERY_COL4_X_MM, BATTERY_ROW_CLOSER_Y_MM},   // Baterie 7 (Sl.4, blíž)
-        {BATTERY_COL4_X_MM, BATTERY_ROW_FARTHER_Y_MM}   // Baterie 8 (Sl.4, dál)
+        {BATTERY_COL4_X_MM, BATTERY_ROW_FARTHER_Y_MM},  // Baterie 8 (Sl.4, dál)
+        {BATTERY_COL5_X_MM, BATTERY_ROW_CLOSER_Y_MM},   // Baterie 9 (Sl.5, blíž)
+        {BATTERY_COL5_X_MM, BATTERY_ROW_FARTHER_Y_MM},  // Baterie 10 (Sl.5, dál)
+        {BATTERY_COL6_X_MM, BATTERY_ROW_CLOSER_Y_MM},   // Baterie 11 (Sl.6, blíž)
+        {BATTERY_COL6_X_MM, BATTERY_ROW_FARTHER_Y_MM}   // Baterie 12 (Sl.6, dál)
     };
 
-    // Cílové pozice středu robota pro sběr baterií
-    //   cíl_střed = baterie_X + RAMENO_OD_STREDU_MM
-    const float BATTERY_TARGETS[4] = {
-        BATTERY_COL1_X_MM + RAMENO_OD_STREDU_MM,  // 1390 mm (Sloupec 1)
-        BATTERY_COL2_X_MM + RAMENO_OD_STREDU_MM,  // 1520 mm (Sloupec 2)
-        BATTERY_COL3_X_MM + RAMENO_OD_STREDU_MM,  // 1660 mm (Sloupec 3)
-        BATTERY_COL4_X_MM + RAMENO_OD_STREDU_MM   // 1790 mm (Sloupec 4)
+    // Cílové pozice středu robota pro sběr baterií pro všech 6 sloupců
+    const float BATTERY_TARGETS[6] = {
+        BATTERY_COL1_X_MM + RAMENO_OD_STREDU_MM,
+        BATTERY_COL2_X_MM + RAMENO_OD_STREDU_MM,
+        BATTERY_COL3_X_MM + RAMENO_OD_STREDU_MM,
+        BATTERY_COL4_X_MM + RAMENO_OD_STREDU_MM,
+        BATTERY_COL5_X_MM + RAMENO_OD_STREDU_MM,
+        BATTERY_COL6_X_MM + RAMENO_OD_STREDU_MM
     };
 
     // =========================================================================
